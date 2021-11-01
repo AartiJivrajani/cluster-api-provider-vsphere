@@ -24,14 +24,15 @@ import (
 	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/patch"
 
-	infrav1 "sigs.k8s.io/cluster-api-provider-vsphere/api/v1beta1"
+	infrav1 "sigs.k8s.io/cluster-api-provider-vsphere/apis/v1beta1"
+	vmware_infrav1 "sigs.k8s.io/cluster-api-provider-vsphere/apis/vmware/v1beta1"
 )
 
 // ClusterContext is a Go context used with a VSphereCluster.
 type ClusterContext struct {
 	*ControllerContext
 	Cluster        *clusterv1.Cluster
-	VSphereCluster *infrav1.VSphereCluster
+	VSphereCluster *vmware_infrav1.VSphereCluster
 	PatchHelper    *patch.Helper
 	Logger         logr.Logger
 }

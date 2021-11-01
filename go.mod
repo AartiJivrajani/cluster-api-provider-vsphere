@@ -16,6 +16,7 @@ require (
 	golang.org/x/crypto v0.0.0-20210817164053-32db794688a5
 	golang.org/x/oauth2 v0.0.0-20210819190943-2bc19b11175f
 	gopkg.in/gcfg.v1 v1.2.3
+	github.com/vmware-tanzu/vm-operator-api v0.1.3
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	k8s.io/api v0.22.2
 	k8s.io/apiextensions-apiserver v0.22.2
