@@ -124,7 +124,7 @@ func (r ClusterReconciler) Reconcile(ctx goctx.Context, req ctrl.Request) (_ ctr
 	}
 
 	// Handle non-deleted clusters
-	return r.reconcileNormal(clusterContext)
+	return r.ReconcileNormal(clusterContext)
 }
 
 func (r *ClusterReconciler) reconcileDelete(ctx *vmware.ClusterContext) reconcile.Result {
@@ -148,7 +148,7 @@ func (r *ClusterReconciler) reconcileDelete(ctx *vmware.ClusterContext) reconcil
 	return reconcile.Result{}
 }
 
-func (r *ClusterReconciler) reconcileNormal(ctx *vmware.ClusterContext) (reconcile.Result, error) {
+func (r *ClusterReconciler) ReconcileNormal(ctx *vmware.ClusterContext) (reconcile.Result, error) {
 	ctx.Logger.Info("Reconciling vsphereCluster")
 
 	// If the vsphereCluster doesn't have our finalizer, add it.
