@@ -24,7 +24,6 @@ import (
 	"io/ioutil"
 	"net"
 	"path"
-	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -250,7 +249,7 @@ func (s *TestSuite) init(addToManagerFn manager.AddToManagerFunc, newReconcilerF
 	//s.FeatureStates = featureStates
 	s.newReconcilerFn = newReconcilerFn
 
-	if s.flags.IntegrationTestsEnabled {
+	/*if s.flags.IntegrationTestsEnabled {
 		if addToManagerFn == nil {
 			panic("addToManagerFn is nil")
 		}
@@ -273,7 +272,7 @@ func (s *TestSuite) init(addToManagerFn manager.AddToManagerFunc, newReconcilerF
 			},
 			KubeAPIServerFlags: apiServerFlags,
 		}
-	}
+	}*/
 }
 
 // Register should be invoked by the function to which *testing.T is passed.
@@ -337,8 +336,8 @@ func (s *TestSuite) NewUnitTestContextForControllerWithTanzuKubernetesCluster(vs
 		//SetTKRRefForVersion(ctx.Cluster, FakeDistributionVersion)
 		reconcileNormalAndExpectSuccess(ctx)
 		// Update the TanzuKubernetesCluster and its status in the fake client.
-		Expect(ctx.Client.Update(ctx, ctx.Cluster)).To(Succeed())
-		Expect(ctx.Client.Status().Update(ctx, ctx.Cluster)).To(Succeed())
+		Expect(ctx.Client.Update(ctx, ctx.VSphereCluster)).To(Succeed())
+		Expect(ctx.Client.Status().Update(ctx, ctx.VSphereCluster)).To(Succeed())
 
 		return ctx
 	}

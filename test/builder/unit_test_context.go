@@ -102,10 +102,10 @@ func NewUnitTestContextForController(newReconcilerFn NewReconcilerFunc,
 	ctx := &UnitTestContextForController{
 		ClusterContext: fake.NewVmwareClusterContext(
 			fake.NewControllerContext(
-				fake.NewControllerManagerContext(gcInitObjects...))),
+				fake.NewControllerManagerContext(initObjects...)), tkc),
 		Reconciler: reconciler,
 	}
-	ctx.Key = client.ObjectKey{Namespace: ctx.Cluster.Namespace, Name: ctx.Cluster.Name}
+	ctx.Key = client.ObjectKey{Namespace: ctx.VSphereCluster.Namespace, Name: ctx.VSphereCluster.Name}
 
 	CreatePrototypePrereqs(ctx, ctx.ControllerManagerContext)
 
@@ -291,7 +291,6 @@ func NewFakeClient(initObjects ...runtime.Object) (client.Client, *runtime.Schem
 	_ = infrav1.AddToScheme(scheme)
 	_ = vmoprv1.AddToScheme(scheme)
 	_ = vmwarev1.AddToScheme(scheme)
-	// TODO: [Aarti]: uncomment the apiextv1beta1
 	_ = apiextv1beta1.AddToScheme(scheme)
 	//_ = cmv1alpha2.AddToScheme(scheme)
 	_ = netopv1alpha1.AddToScheme(scheme)

@@ -19,13 +19,15 @@ package controllers
 import (
 	goctx "context"
 	"fmt"
-	"sigs.k8s.io/cluster-api/controllers/remote"
 	"time"
+
+	"sigs.k8s.io/cluster-api/controllers/remote"
 
 	//rbacv1 "k8s.io/api/rbac/v1"
 	"net"
 	"net/url"
 	"reflect"
+
 	"sigs.k8s.io/cluster-api-provider-vsphere/pkg/record"
 	"sigs.k8s.io/cluster-api/util/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -56,7 +58,8 @@ import (
 )
 
 const (
-	clusterNotReadyRequeueTime = time.Minute * 2
+	clusterNotReadyRequeueTime    = time.Minute * 2
+	serviceDiscoverControllerName = "svcdiscovery-controller"
 )
 
 // AddToManager adds this package's controller to the provided manager.
@@ -199,7 +202,7 @@ func (r serviceDiscoveryReconciler) Reconcile(ctx goctx.Context, req reconcile.R
 	// then just return a no-op and wait for the next sync. This will occur when
 	// the Cluster's status is updated with a reference to the secret that has
 	// the Kubeconfig data used to access the target cluster.
-	_, err = remote.NewClusterClient(clusterContext, clusterContext.Cluster.Name, clusterContext.Client, clusterKey)
+	_, err = remote.NewClusterClient(clusterContext, serviceDiscoverControllerName, clusterContext.Client, clusterKey)
 	if err != nil {
 		clusterContext.Logger.Info("The control plane is not ready yet", "err", err)
 		return reconcile.Result{RequeueAfter: clusterNotReadyRequeueTime}, nil
@@ -267,10 +270,10 @@ func allClustersRequests(ctx *context.ControllerManagerContext) []reconcile.Requ
 // +kubebuilder:rbac:groups="",resources=configmaps/status,verbs=get
 
 func (r serviceDiscoveryReconciler) ReconcileNormal(ctx *vmwarecontext.ClusterContext) (reconcile.Result, error) {
-	ctx.Logger.V(4).Info("Reconciling Service Discovery", "cluster", ctx.Cluster.Name)
+	ctx.Logger.V(4).Info("Reconciling Service Discovery", "cluster", ctx.VSphereCluster.Name)
 
 	if err := r.reconcileSupervisorHeadlessService(ctx); err != nil {
-		conditions.MarkFalse(ctx.Cluster, vmwarev1.ServiceDiscoveryReadyCondition, vmwarev1.SupervisorHeadlessServiceSetupFailedReason,
+		conditions.MarkFalse(ctx.VSphereCluster, vmwarev1.ServiceDiscoveryReadyCondition, vmwarev1.SupervisorHeadlessServiceSetupFailedReason,
 			clusterv1.ConditionSeverityWarning, err.Error())
 		return reconcile.Result{}, errors.Wrapf(err, "failed to configure supervisor headless service for %s", ctx)
 	}
@@ -292,7 +295,7 @@ func (r serviceDiscoveryReconciler) reconcileSupervisorHeadlessService(ctx *vmwa
 	if err != nil {
 		// Note: We have watches on the LB Svc (VIP) & the cluster-info configmap (FIP). There is no need to return an error to keep
 		// re-trying.
-		conditions.MarkFalse(ctx.Cluster, vmwarev1.ServiceDiscoveryReadyCondition, vmwarev1.SupervisorHeadlessServiceSetupFailedReason,
+		conditions.MarkFalse(ctx.VSphereCluster, vmwarev1.ServiceDiscoveryReadyCondition, vmwarev1.SupervisorHeadlessServiceSetupFailedReason,
 			clusterv1.ConditionSeverityWarning, err.Error())
 		return nil
 	}
@@ -321,7 +324,7 @@ func (r serviceDiscoveryReconciler) reconcileSupervisorHeadlessService(ctx *vmwa
 		}
 	}
 
-	conditions.MarkTrue(ctx.Cluster, vmwarev1.ServiceDiscoveryReadyCondition)
+	conditions.MarkTrue(ctx.VSphereCluster, vmwarev1.ServiceDiscoveryReadyCondition)
 	return nil
 }
 

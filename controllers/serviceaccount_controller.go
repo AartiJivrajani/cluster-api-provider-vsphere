@@ -234,7 +234,7 @@ func (r ServiceAccountReconciler) Reconcile(ctx _context.Context, req reconcile.
 	// then just return a no-op and wait for the next sync. This will occur when
 	// the Cluster's status is updated with a reference to the secret that has
 	// the Kubeconfig data used to access the target cluster.
-	_, err = remote.NewClusterClient(clusterContext, clusterContext.Cluster.Name, clusterContext.Client, clusterKey)
+	_, err = remote.NewClusterClient(clusterContext, controllerName, clusterContext.Client, clusterKey)
 	if err != nil {
 		clusterContext.Logger.Info("The control plane is not ready yet", "err", err)
 		return reconcile.Result{RequeueAfter: clusterNotReadyRequeueTime}, nil
@@ -259,7 +259,7 @@ func (r ServiceAccountReconciler) Reconcile(ctx _context.Context, req reconcile.
 }
 
 func (r ServiceAccountReconciler) ReconcileDelete(ctx *vmwarecontext.ClusterContext) (reconcile.Result, error) {
-	ctx.Logger.V(4).Info("Reconciling deleting Provider ServiceAccounts", "cluster", ctx.Cluster.Name)
+	ctx.Logger.V(4).Info("Reconciling deleting Provider ServiceAccounts", "cluster", ctx.VSphereCluster.Name)
 
 	pSvcAccounts, err := getProviderServiceAccounts(ctx)
 	if err != nil {
@@ -284,14 +284,14 @@ func (r ServiceAccountReconciler) ReconcileDelete(ctx *vmwarecontext.ClusterCont
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=get;list;watch;create;update;patch;delete
 
 func (r ServiceAccountReconciler) ReconcileNormal(ctx *vmwarecontext.ClusterContext) (_ reconcile.Result, reterr error) {
-	ctx.Logger.V(4).Info("Reconciling Provider ServiceAccount", "cluster", ctx.Cluster.Name)
+	ctx.Logger.V(4).Info("Reconciling Provider ServiceAccount", "cluster", ctx.VSphereCluster.Name)
 
 	defer func() {
 		if reterr != nil {
-			conditions.MarkFalse(ctx.Cluster, vmwarev1.ProviderServiceAccountsReadyCondition, vmwarev1.ProviderServiceAccountsReconciliationFailedReason,
+			conditions.MarkFalse(ctx.VSphereCluster, vmwarev1.ProviderServiceAccountsReadyCondition, vmwarev1.ProviderServiceAccountsReconciliationFailedReason,
 				clusterv1.ConditionSeverityWarning, reterr.Error())
 		} else {
-			conditions.MarkTrue(ctx.Cluster, vmwarev1.ProviderServiceAccountsReadyCondition)
+			conditions.MarkTrue(ctx.VSphereCluster, vmwarev1.ProviderServiceAccountsReadyCondition)
 		}
 	}()
 
@@ -531,7 +531,7 @@ func getProviderServiceAccounts(ctx *vmwarecontext.ClusterContext) ([]vmwarev1.P
 	var pSvcAccounts []vmwarev1.ProviderServiceAccount
 
 	pSvcAccountList := vmwarev1.ProviderServiceAccountList{}
-	if err := ctx.Client.List(ctx, &pSvcAccountList, client.InNamespace(ctx.Cluster.Namespace)); err != nil {
+	if err := ctx.Client.List(ctx, &pSvcAccountList, client.InNamespace(ctx.VSphereCluster.Namespace)); err != nil {
 		return nil, err
 	}
 
@@ -543,7 +543,7 @@ func getProviderServiceAccounts(ctx *vmwarecontext.ClusterContext) ([]vmwarev1.P
 			continue
 		}
 		ref := pSvcAccount.Spec.Ref
-		if ref != nil && ref.Name == ctx.Cluster.Name {
+		if ref != nil && ref.Name == ctx.VSphereCluster.Name {
 			pSvcAccounts = append(pSvcAccounts, pSvcAccount)
 		}
 	}

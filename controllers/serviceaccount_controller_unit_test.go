@@ -32,7 +32,7 @@ import (
 )
 
 func unitTests() {
-	Describe("Invoking ReconcileNormal", unitTestsReconcileNormal)
+	FDescribe("Invoking ReconcileNormal", unitTestsReconcileNormal)
 }
 
 func unitTestsReconcileNormal() {

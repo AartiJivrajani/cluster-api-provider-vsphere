@@ -22,7 +22,6 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -47,9 +46,9 @@ func TestController(t *testing.T) {
 	suite.Register(t, "ProviderServiceaccount controller suite", func() { return }, unitTests)
 }
 
-var _ = BeforeSuite(suite.BeforeSuite)
+/*var _ = BeforeSuite(suite.BeforeSuite)
 
-var _ = AfterSuite(suite.AfterSuite)
+var _ = AfterSuite(suite.AfterSuite)*/
 
 const (
 	testNS                     = "test-namespace"
