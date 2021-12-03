@@ -18,7 +18,8 @@ package builder
 
 import (
 	infrav1 "sigs.k8s.io/cluster-api-provider-vsphere/apis/v1beta1"
-	"sigs.k8s.io/cluster-api-provider-vsphere/controllers"
+	"sigs.k8s.io/cluster-api-provider-vsphere/pkg/context/vmware"
+
 	//"sigs.k8s.io/cluster-api-provider-vsphere/pkg/context"
 
 	_ "github.com/imdario/mergo"
@@ -48,7 +49,6 @@ import (
 	"sigs.k8s.io/cluster-api-provider-vsphere/pkg/context/fake"
 
 	context "sigs.k8s.io/cluster-api-provider-vsphere/pkg/context"
-	vmwarecontext "sigs.k8s.io/cluster-api-provider-vsphere/pkg/context/vmware"
 	//"gitlab.eng.vmware.com/core-build/guest-cluster-controller/controllers/util"
 	//"gitlab.eng.vmware.com/core-build/guest-cluster-controller/controllers/util/version"
 	//"gitlab.eng.vmware.com/core-build/guest-cluster-controller/controllers/util/vlabel"
@@ -59,7 +59,8 @@ import (
 type UnitTestContextForController struct {
 	// GuestClusterContext is initialized with fake.NewGuestClusterContext
 	// and is used for unit testing.
-	fake.GClusterContext
+	//fake.GClusterContext
+	*vmware.ClusterContext
 
 	// Key may be used to lookup Ctx.Cluster with Ctx.Client.Get.
 	Key client.ObjectKey
@@ -99,11 +100,9 @@ func NewUnitTestContextForController(newReconcilerFn NewReconcilerFunc,
 	reconciler := newReconcilerFn()
 
 	ctx := &UnitTestContextForController{
-		GClusterContext: *(fake.NewGClusterContext(
-			vmwarecontext.ClusterContext{
-				ControllerContext: fake.NewControllerContext(
-					fake.NewControllerManagerContext(),
-				)}, prototypeCluster, gcInitObjects...)),
+		ClusterContext: fake.NewVmwareClusterContext(
+			fake.NewControllerContext(
+				fake.NewControllerManagerContext(gcInitObjects...))),
 		Reconciler: reconciler,
 	}
 	ctx.Key = client.ObjectKey{Namespace: ctx.Cluster.Namespace, Name: ctx.Cluster.Name}
@@ -303,14 +302,6 @@ func NewFakeClient(initObjects ...runtime.Object) (client.Client, *runtime.Schem
 
 // ReconcileNormal manually invokes the ReconcileNormal method on the controller
 func (ctx UnitTestContextForController) ReconcileNormal() error {
-	var err error
-	switch t := ctx.Reconciler.(type) {
-	default:
-		panic("Unexpected type")
-	case controllers.ServiceAccountReconciler:
-		_, err = t.ReconcileNormal(ctx.ClusterContext)
-	//case vmwarecontroller.ClusterReconciler:
-	//	_, err = t.ReconcileNormal(ctx.ClusterContext)
-	}
+	_, err := ctx.Reconciler.ReconcileNormal(ctx.ClusterContext)
 	return err
 }

@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"os"
+
 	"sigs.k8s.io/cluster-api-provider-vsphere/test/builder"
 
 	. "github.com/onsi/ginkgo"
@@ -28,7 +29,6 @@ import (
 	vmwarev1 "sigs.k8s.io/cluster-api-provider-vsphere/apis/vmware/v1beta1"
 	_ "sigs.k8s.io/cluster-api-provider-vsphere/pkg/context"
 	"sigs.k8s.io/cluster-api-provider-vsphere/pkg/context/fake"
-
 )
 
 func unitTests() {
@@ -74,21 +74,21 @@ func unitTestsReconcileNormal() {
 		})
 		Context("When serviceaccount secret is created", func() {
 			It("Should reconcile", func() {
-				assertTargetNamespace(ctx, ctx.GClient, testTargetNS, false)
+				assertTargetNamespace(ctx, ctx.Client, testTargetNS, false)
 				updateServiceAccountSecretAndReconcileNormal(ctx)
-				assertTargetNamespace(ctx, ctx.GClient, testTargetNS, true)
+				assertTargetNamespace(ctx, ctx.Client, testTargetNS, true)
 				By("Creating the target secret in the target namespace")
-				assertTargetSecret(ctx, ctx.GClient, testTargetNS, testTargetSecret)
+				assertTargetSecret(ctx, ctx.Client, testTargetNS, testTargetSecret)
 				assertProviderServiceAccountsCondition(ctx.VSphereCluster, corev1.ConditionTrue, "", "", "")
 			})
 		})
 		Context("When serviceaccount secret is modified", func() {
 			It("Should reconcile", func() {
 				// This is to simulate an outdate token that will be replaced when the serviceaccount secret is created.
-				createTargetSecretWithInvalidToken(ctx, ctx.GClient)
+				createTargetSecretWithInvalidToken(ctx, ctx.Client)
 				updateServiceAccountSecretAndReconcileNormal(ctx)
 				By("Updating the target secret in the target namespace")
-				assertTargetSecret(ctx, ctx.GClient, testTargetNS, testTargetSecret)
+				assertTargetSecret(ctx, ctx.Client, testTargetNS, testTargetSecret)
 				assertProviderServiceAccountsCondition(ctx.VSphereCluster, corev1.ConditionTrue, "", "", "")
 			})
 		})
@@ -117,6 +117,5 @@ func unitTestsReconcileNormal() {
 // and then re-invokes reconcileNormal
 func updateServiceAccountSecretAndReconcileNormal(ctx *builder.UnitTestContextForController) {
 	assertServiceAccountAndUpdateSecret(ctx, ctx.Client, testNS, testSvcAccountName)
-
 	Expect(ctx.ReconcileNormal()).Should(Succeed())
 }

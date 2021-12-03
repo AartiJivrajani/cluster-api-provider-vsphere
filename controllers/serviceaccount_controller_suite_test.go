@@ -28,6 +28,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	//"k8s.io/apimachinery/pkg/runtime"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/conditions"
@@ -37,7 +38,8 @@ import (
 	"sigs.k8s.io/cluster-api-provider-vsphere/test/builder"
 )
 
-// suite is used for unit and integration testing this controller.
+// This object is used for unit tests setup only
+// Integration tests will be run using the existing envTest setup.
 var suite = builder.NewTestSuiteForController(AddServiceAccountProviderControllerToManager, NewServiceAccountReconciler)
 
 func TestController(t *testing.T) {

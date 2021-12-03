@@ -29,8 +29,13 @@ import (
 	"testing"
 	"time"
 
+	vmwarecontext "sigs.k8s.io/cluster-api-provider-vsphere/pkg/context/vmware"
+
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
 	vmwarev1 "sigs.k8s.io/cluster-api-provider-vsphere/apis/vmware/v1beta1"
 	"sigs.k8s.io/cluster-api-provider-vsphere/test/remote"
+
 	//ctrlmgr "sigs.k8s.io/controller-runtime/pkg/manager"
 
 	// nolint
@@ -41,14 +46,12 @@ import (
 	admissionregv1 "k8s.io/api/admissionregistration/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
-	"k8s.io/klog"
-	"k8s.io/klog/klogr"
+
 	//"sigs.k8s.io/cluster-api-provider-vsphere/pkg/context"
 	//"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/yaml"
 
 	"sigs.k8s.io/cluster-api-provider-vsphere/pkg/manager"
@@ -65,9 +68,9 @@ var (
 )
 
 func init() {
-	klog.InitFlags(nil)
+	/*klog.InitFlags(nil)
 	klog.SetOutput(GinkgoWriter)
-	logf.SetLogger(klogr.New())
+	logf.SetLogger(klogr.New())*/
 }
 
 // TestSuite is used for unit and integration testing builder.
@@ -101,7 +104,9 @@ func (s *TestSuite) GetEnvTestConfg() *rest.Config {
 	return s.config
 }
 
-type Reconciler interface{}
+type Reconciler interface {
+	ReconcileNormal(ctx *vmwarecontext.ClusterContext) (reconcile.Result, error)
+}
 
 // NewReconcilerFunc is a base type for functions that return a reconciler
 type NewReconcilerFunc func() Reconciler
@@ -345,18 +350,18 @@ func (s *TestSuite) NewUnitTestContextForControllerWithTanzuKubernetesCluster(vs
 //
 // Returns nil if unit testing is disabled.
 func (s *TestSuite) NewUnitTestContextForControllerWithGuestClusterObjects(initObjects, gcInitObjects []runtime.Object, positiveTestCase bool) *UnitTestContextForController {
-	if s.flags.UnitTestsEnabled {
-		ctx := NewUnitTestContextForController(s.newReconcilerFn, nil, false, initObjects, gcInitObjects)
-		if positiveTestCase {
-			reconcileNormalAndExpectSuccess(ctx)
-			// Update the TanzuKubernetesCluster and its status in the fake client.
-			Expect(ctx.Client.Update(ctx, ctx.Cluster)).To(Succeed())
-			Expect(ctx.Client.Status().Update(ctx, ctx.Cluster)).To(Succeed())
+	//if s.flags.UnitTestsEnabled {
+	ctx := NewUnitTestContextForController(s.newReconcilerFn, nil, false, initObjects, gcInitObjects)
+	if positiveTestCase {
+		reconcileNormalAndExpectSuccess(ctx)
+		// Update the TanzuKubernetesCluster and its status in the fake client.
+		Expect(ctx.Client.Update(ctx, ctx.Cluster)).To(Succeed())
+		Expect(ctx.Client.Status().Update(ctx, ctx.Cluster)).To(Succeed())
 
-		}
-		return ctx
 	}
-	return nil
+	return ctx
+	//}
+	//return nil
 }
 
 func reconcileNormalAndExpectSuccess(ctx *UnitTestContextForController) {
@@ -364,7 +369,7 @@ func reconcileNormalAndExpectSuccess(ctx *UnitTestContextForController) {
 	// to support unit testing with a minimum set of dependencies that does
 	// not include the Kubernetes envtest package, this is required.
 	//
-	//Expect(ctx.ReconcileNormal()).ShouldNot(HaveOccurred())
+	Expect(ctx.ReconcileNormal()).ShouldNot(HaveOccurred())
 }
 
 // NewUnitTestContextForValidatingWebhook returns a new unit test context for this
@@ -670,5 +675,3 @@ func updateMutatingWebhookConfig(webhookConfig admissionregv1.MutatingWebhookCon
 	Expect(err).ShouldNot(HaveOccurred())
 	return result
 }
-
-
