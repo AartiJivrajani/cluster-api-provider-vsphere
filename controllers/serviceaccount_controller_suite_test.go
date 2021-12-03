@@ -39,16 +39,16 @@ import (
 
 // This object is used for unit tests setup only
 // Integration tests will be run using the existing envTest setup.
-var suite = builder.NewTestSuiteForController(AddServiceAccountProviderControllerToManager, NewServiceAccountReconciler)
+var serviceAccountProviderTestsuite = builder.NewTestSuiteForController(AddServiceAccountProviderControllerToManager, NewServiceAccountReconciler)
 
-func TestController(t *testing.T) {
+func TestServiceAccountProviderController(t *testing.T) {
 	// TODO: [Aarti] - Add the integration test function instead of placeholder
-	suite.Register(t, "ProviderServiceaccount controller suite", func() { return }, unitTests)
+	serviceAccountProviderTestsuite.Register(t, "ProviderServiceaccount controller serviceAccountProviderTestsuite", func() { return }, unitTests)
 }
 
-/*var _ = BeforeSuite(suite.BeforeSuite)
+/*var _ = BeforeSuite(serviceAccountProviderTestsuite.BeforeSuite)
 
-var _ = AfterSuite(suite.AfterSuite)*/
+var _ = AfterSuite(serviceAccountProviderTestsuite.AfterSuite)*/
 
 const (
 	testNS                     = "test-namespace"
@@ -88,7 +88,7 @@ func createTargetSecretWithInvalidToken(ctx *builder.UnitTestContextForControlle
 	Expect(guestClient.Create(ctx, secret)).To(Succeed())
 }
 
-func assertEventuallyExistsInNamespace(ctx *builder.UnitTestContextForController, c client.Client, namespace, name string, obj client.Object) {
+func assertEventuallyExistsInNamespace(ctx goctx.Context, c client.Client, namespace, name string, obj client.Object) {
 	EventuallyWithOffset(2, func() error {
 		key := client.ObjectKey{Namespace: namespace, Name: name}
 		return c.Get(ctx, key, obj)

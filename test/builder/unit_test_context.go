@@ -60,7 +60,7 @@ type UnitTestContextForController struct {
 	// GuestClusterContext is initialized with fake.NewGuestClusterContext
 	// and is used for unit testing.
 	//fake.GClusterContext
-	*vmware.ClusterContext
+	*vmware.GuestClusterContext
 
 	// Key may be used to lookup Ctx.Cluster with Ctx.Client.Get.
 	Key client.ObjectKey
@@ -100,9 +100,9 @@ func NewUnitTestContextForController(newReconcilerFn NewReconcilerFunc,
 	reconciler := newReconcilerFn()
 
 	ctx := &UnitTestContextForController{
-		ClusterContext: fake.NewVmwareClusterContext(
+		GuestClusterContext: fake.NewGuestClusterContext(fake.NewVmwareClusterContext(
 			fake.NewControllerContext(
-				fake.NewControllerManagerContext(initObjects...)), tkc),
+				fake.NewControllerManagerContext(initObjects...)), tkc), prototypeCluster, gcInitObjects...),
 		Reconciler: reconciler,
 	}
 	ctx.Key = client.ObjectKey{Namespace: ctx.VSphereCluster.Namespace, Name: ctx.VSphereCluster.Name}
@@ -301,6 +301,6 @@ func NewFakeClient(initObjects ...runtime.Object) (client.Client, *runtime.Schem
 
 // ReconcileNormal manually invokes the ReconcileNormal method on the controller
 func (ctx UnitTestContextForController) ReconcileNormal() error {
-	_, err := ctx.Reconciler.ReconcileNormal(ctx.ClusterContext)
+	_, err := ctx.Reconciler.ReconcileNormal(ctx.GuestClusterContext)
 	return err
 }

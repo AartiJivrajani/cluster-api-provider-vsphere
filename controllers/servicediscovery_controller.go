@@ -19,6 +19,7 @@ package controllers
 import (
 	goctx "context"
 	"fmt"
+	"sigs.k8s.io/cluster-api-provider-vsphere/test/builder"
 	"time"
 
 	"sigs.k8s.io/cluster-api/controllers/remote"
@@ -60,6 +61,13 @@ import (
 const (
 	clusterNotReadyRequeueTime    = time.Minute * 2
 	serviceDiscoverControllerName = "svcdiscovery-controller"
+
+	supervisorLoadBalancerSvcNamespace = "kube-system"
+	supervisorLoadBalancerSvcName      = "kube-apiserver-lb-svc"
+	supervisorAPIServerPort            = 6443
+
+	supervisorHeadlessSvcNamespace = "default"
+	supervisorHeadlessSvcName      = "supervisor"
 )
 
 // AddToManager adds this package's controller to the provided manager.
@@ -143,6 +151,11 @@ func AddServiceDiscoveryControllerToManager(ctx *context.ControllerManagerContex
 		Complete(r)
 }
 
+// TODO: dont export this method
+func NewServiceDiscoveryReconciler() builder.Reconciler {
+	return serviceDiscoveryReconciler{}
+}
+
 type serviceDiscoveryReconciler struct {
 	*context.ControllerContext
 }
@@ -202,7 +215,7 @@ func (r serviceDiscoveryReconciler) Reconcile(ctx goctx.Context, req reconcile.R
 	// then just return a no-op and wait for the next sync. This will occur when
 	// the Cluster's status is updated with a reference to the secret that has
 	// the Kubeconfig data used to access the target cluster.
-	_, err = remote.NewClusterClient(clusterContext, serviceDiscoverControllerName, clusterContext.Client, clusterKey)
+	guestClient, err := remote.NewClusterClient(clusterContext, serviceDiscoverControllerName, clusterContext.Client, clusterKey)
 	if err != nil {
 		clusterContext.Logger.Info("The control plane is not ready yet", "err", err)
 		return reconcile.Result{RequeueAfter: clusterNotReadyRequeueTime}, nil
@@ -223,7 +236,10 @@ func (r serviceDiscoveryReconciler) Reconcile(ctx goctx.Context, req reconcile.R
 	//}
 
 	// Defer to the Reconciler for reconciling a non-delete event.
-	return r.ReconcileNormal(clusterContext)
+	return r.ReconcileNormal(&vmwarecontext.GuestClusterContext{
+		ClusterContext: clusterContext,
+		GuestClient:    guestClient,
+	})
 }
 
 type svcMapper struct {
@@ -269,7 +285,7 @@ func allClustersRequests(ctx *context.ControllerManagerContext) []reconcile.Requ
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=configmaps/status,verbs=get
 
-func (r serviceDiscoveryReconciler) ReconcileNormal(ctx *vmwarecontext.ClusterContext) (reconcile.Result, error) {
+func (r serviceDiscoveryReconciler) ReconcileNormal(ctx *vmwarecontext.GuestClusterContext) (reconcile.Result, error) {
 	ctx.Logger.V(4).Info("Reconciling Service Discovery", "cluster", ctx.VSphereCluster.Name)
 
 	if err := r.reconcileSupervisorHeadlessService(ctx); err != nil {
@@ -283,15 +299,15 @@ func (r serviceDiscoveryReconciler) ReconcileNormal(ctx *vmwarecontext.ClusterCo
 
 // Setup a local k8s service in the target cluster that proxies to the Supervisor Cluster API Server. The add-ons are
 // dependent on this local service to connect to the Supervisor Cluster.
-func (r serviceDiscoveryReconciler) reconcileSupervisorHeadlessService(ctx *vmwarecontext.ClusterContext) error {
+func (r serviceDiscoveryReconciler) reconcileSupervisorHeadlessService(ctx *vmwarecontext.GuestClusterContext) error {
 	// Create the headless service to the supervisor api server on the target cluster.
 	supervisorPort := vmwarev1.SupervisorAPIServerPort
 	svc := NewSupervisorHeadlessService(vmwarev1.SupervisorHeadlessSvcPort, supervisorPort)
-	if err := ctx.Client.Create(ctx, svc); err != nil && !apierrors.IsAlreadyExists(err) {
+	if err := ctx.GuestClient.Create(ctx, svc); err != nil && !apierrors.IsAlreadyExists(err) {
 		return errors.Wrapf(err, "cannot create k8s service %s/%s in ", svc.Namespace, svc.Name)
 	}
 
-	supervisorHost, err := GetSupervisorAPIServerAddress(ctx)
+	supervisorHost, err := GetSupervisorAPIServerAddress(ctx.ClusterContext)
 	if err != nil {
 		// Note: We have watches on the LB Svc (VIP) & the cluster-info configmap (FIP). There is no need to return an error to keep
 		// re-trying.
@@ -304,18 +320,18 @@ func (r serviceDiscoveryReconciler) reconcileSupervisorHeadlessService(ctx *vmwa
 	// CreateOrUpdate the newEndpoints with the discovered supervisor api server address
 	newEndpoints := NewSupervisorHeadlessServiceEndpoints(supervisorHost, supervisorPort)
 	endpointsKey := types.NamespacedName{Name: vmwarev1.SupervisorHeadlessSvcName, Namespace: vmwarev1.SupervisorHeadlessSvcNamespace}
-	if createErr := ctx.Client.Create(ctx, newEndpoints); createErr != nil {
+	if createErr := ctx.GuestClient.Create(ctx, newEndpoints); createErr != nil {
 
 		if apierrors.IsAlreadyExists(createErr) {
 			var endpoints corev1.Endpoints
-			if getErr := ctx.Client.Get(ctx, endpointsKey, &endpoints); getErr != nil {
+			if getErr := ctx.GuestClient.Get(ctx, endpointsKey, &endpoints); getErr != nil {
 				return errors.Wrapf(getErr, "cannot get k8s service endpoints %s", endpointsKey)
 			}
 			// Update only if modified
 			if !reflect.DeepEqual(endpoints.Subsets, newEndpoints.Subsets) {
 				endpoints.Subsets = newEndpoints.Subsets
 				// Update the newEndpoints if it already exists
-				if updateErr := ctx.Client.Update(ctx, &endpoints); updateErr != nil {
+				if updateErr := ctx.GuestClient.Update(ctx, &endpoints); updateErr != nil {
 					return errors.Wrapf(updateErr, "cannot update k8s service endpoints %s", endpointsKey)
 				}
 			}

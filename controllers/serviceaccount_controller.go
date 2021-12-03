@@ -234,7 +234,7 @@ func (r ServiceAccountReconciler) Reconcile(ctx _context.Context, req reconcile.
 	// then just return a no-op and wait for the next sync. This will occur when
 	// the Cluster's status is updated with a reference to the secret that has
 	// the Kubeconfig data used to access the target cluster.
-	_, err = remote.NewClusterClient(clusterContext, controllerName, clusterContext.Client, clusterKey)
+	guestClient, err := remote.NewClusterClient(clusterContext, controllerName, clusterContext.Client, clusterKey)
 	if err != nil {
 		clusterContext.Logger.Info("The control plane is not ready yet", "err", err)
 		return reconcile.Result{RequeueAfter: clusterNotReadyRequeueTime}, nil
@@ -255,7 +255,10 @@ func (r ServiceAccountReconciler) Reconcile(ctx _context.Context, req reconcile.
 	//}
 
 	// Defer to the Reconciler for reconciling a non-delete event.
-	return r.ReconcileNormal(clusterContext)
+	return r.ReconcileNormal(&vmwarecontext.GuestClusterContext{
+		ClusterContext: clusterContext,
+		GuestClient:    guestClient,
+	})
 }
 
 func (r ServiceAccountReconciler) ReconcileDelete(ctx *vmwarecontext.ClusterContext) (reconcile.Result, error) {
@@ -283,7 +286,7 @@ func (r ServiceAccountReconciler) ReconcileDelete(ctx *vmwarecontext.ClusterCont
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=get;list;watch;create;update;patch;delete
 
-func (r ServiceAccountReconciler) ReconcileNormal(ctx *vmwarecontext.ClusterContext) (_ reconcile.Result, reterr error) {
+func (r ServiceAccountReconciler) ReconcileNormal(ctx *vmwarecontext.GuestClusterContext) (_ reconcile.Result, reterr error) {
 	ctx.Logger.V(4).Info("Reconciling Provider ServiceAccount", "cluster", ctx.VSphereCluster.Name)
 
 	defer func() {
@@ -295,7 +298,7 @@ func (r ServiceAccountReconciler) ReconcileNormal(ctx *vmwarecontext.ClusterCont
 		}
 	}()
 
-	pSvcAccounts, err := getProviderServiceAccounts(ctx)
+	pSvcAccounts, err := getProviderServiceAccounts(ctx.ClusterContext)
 	if err != nil {
 		ctx.Logger.Error(err, "Error fetching provider serviceaccounts")
 		return reconcile.Result{}, err
@@ -310,26 +313,26 @@ func (r ServiceAccountReconciler) ReconcileNormal(ctx *vmwarecontext.ClusterCont
 }
 
 // Ensure service accounts from provider spec is created
-func (r ServiceAccountReconciler) ensureProviderServiceAccounts(ctx *vmwarecontext.ClusterContext, pSvcAccounts []vmwarev1.ProviderServiceAccount) error {
+func (r ServiceAccountReconciler) ensureProviderServiceAccounts(ctx *vmwarecontext.GuestClusterContext, pSvcAccounts []vmwarev1.ProviderServiceAccount) error {
 
 	for _, pSvcAccount := range pSvcAccounts {
 		// 1. Create service accounts by the name specified in Provider Spec
-		if err := r.ensureServiceAccount(ctx, pSvcAccount); err != nil {
+		if err := r.ensureServiceAccount(ctx.ClusterContext, pSvcAccount); err != nil {
 			return errors.Wrapf(err, "unable to create provider serviceaccount %s", pSvcAccount.Name)
 		}
 
 		// 2. Update configmap with serviceaccount
-		if err := r.ensureServiceAccountConfigMap(ctx, pSvcAccount); err != nil {
+		if err := r.ensureServiceAccountConfigMap(ctx.ClusterContext, pSvcAccount); err != nil {
 			return errors.Wrapf(err, "unable to sync configmap for provider serviceaccount %s", pSvcAccount.Name)
 		}
 
 		// 3. Create the associated role for the service account
-		if err := r.ensureRole(ctx, pSvcAccount); err != nil {
+		if err := r.ensureRole(ctx.ClusterContext, pSvcAccount); err != nil {
 			return errors.Wrapf(err, "unable to create role for provider serviceaccount %s", pSvcAccount.Name)
 		}
 
 		// 4. Create the associated roleBinding for the service account
-		if err := r.ensureRoleBinding(ctx, pSvcAccount); err != nil {
+		if err := r.ensureRoleBinding(ctx.ClusterContext, pSvcAccount); err != nil {
 			return errors.Wrapf(err, "unable to create rolebinding for provider serviceaccount %s", pSvcAccount.Name)
 		}
 
@@ -414,7 +417,7 @@ func (r ServiceAccountReconciler) ensureRoleBinding(ctx *vmwarecontext.ClusterCo
 	return err
 }
 
-func (r ServiceAccountReconciler) syncServiceAccountSecret(ctx *vmwarecontext.ClusterContext, pSvcAccount vmwarev1.ProviderServiceAccount) error {
+func (r ServiceAccountReconciler) syncServiceAccountSecret(ctx *vmwarecontext.GuestClusterContext, pSvcAccount vmwarev1.ProviderServiceAccount) error {
 	logger := ctx.Logger.WithValues("providerserviceaccount", pSvcAccount.Name)
 	logger.V(4).Info("Attempting to sync secret for provider service account")
 	var svcAccount corev1.ServiceAccount
@@ -446,9 +449,9 @@ func (r ServiceAccountReconciler) syncServiceAccountSecret(ctx *vmwarecontext.Cl
 		},
 	}
 
-	if err = ctx.Client.Get(ctx, client.ObjectKey{Name: pSvcAccount.Spec.TargetNamespace}, targetNamespace); err != nil {
+	if err = ctx.GuestClient.Get(ctx, client.ObjectKey{Name: pSvcAccount.Spec.TargetNamespace}, targetNamespace); err != nil {
 		if apierrors.IsNotFound(err) {
-			err = ctx.Client.Create(ctx, targetNamespace)
+			err = ctx.GuestClient.Create(ctx, targetNamespace)
 			if err != nil {
 				return err
 			}
@@ -465,7 +468,7 @@ func (r ServiceAccountReconciler) syncServiceAccountSecret(ctx *vmwarecontext.Cl
 		},
 	}
 	logger.V(4).Info("Creating or updating secret in cluster", "namespace", targetSecret.Namespace, "name", targetSecret.Name)
-	_, err = controllerutil.CreateOrUpdate(ctx, ctx.Client, targetSecret, func() error {
+	_, err = controllerutil.CreateOrUpdate(ctx, ctx.GuestClient, targetSecret, func() error {
 		targetSecret.Data = sourceSecret.Data
 		return nil
 	})

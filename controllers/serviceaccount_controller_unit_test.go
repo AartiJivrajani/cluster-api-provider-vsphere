@@ -46,7 +46,7 @@ func unitTestsReconcileNormal() {
 		// Note: The provider service account requires a reference to the tanzukubernetescluster hence the need to create
 		// a fake tanzu kubernetes cluster in the test and pass it to during context setup.
 
-		ctx = suite.NewUnitTestContextForControllerWithTanzuKubernetesCluster(vsphereCluster, false, initObjects...)
+		ctx = serviceAccountProviderTestsuite.NewUnitTestContextForControllerWithTanzuKubernetesCluster(vsphereCluster, false, initObjects...)
 	})
 	AfterEach(func() {
 		ctx = nil
@@ -74,21 +74,21 @@ func unitTestsReconcileNormal() {
 		})
 		Context("When serviceaccount secret is created", func() {
 			It("Should reconcile", func() {
-				assertTargetNamespace(ctx, ctx.Client, testTargetNS, false)
+				assertTargetNamespace(ctx, ctx.GuestClient, testTargetNS, false)
 				updateServiceAccountSecretAndReconcileNormal(ctx)
-				assertTargetNamespace(ctx, ctx.Client, testTargetNS, true)
+				assertTargetNamespace(ctx, ctx.GuestClient, testTargetNS, true)
 				By("Creating the target secret in the target namespace")
-				assertTargetSecret(ctx, ctx.Client, testTargetNS, testTargetSecret)
+				assertTargetSecret(ctx, ctx.GuestClient, testTargetNS, testTargetSecret)
 				assertProviderServiceAccountsCondition(ctx.VSphereCluster, corev1.ConditionTrue, "", "", "")
 			})
 		})
 		Context("When serviceaccount secret is modified", func() {
 			It("Should reconcile", func() {
 				// This is to simulate an outdate token that will be replaced when the serviceaccount secret is created.
-				createTargetSecretWithInvalidToken(ctx, ctx.Client)
+				createTargetSecretWithInvalidToken(ctx, ctx.GuestClient)
 				updateServiceAccountSecretAndReconcileNormal(ctx)
 				By("Updating the target secret in the target namespace")
-				assertTargetSecret(ctx, ctx.Client, testTargetNS, testTargetSecret)
+				assertTargetSecret(ctx, ctx.GuestClient, testTargetNS, testTargetSecret)
 				assertProviderServiceAccountsCondition(ctx.VSphereCluster, corev1.ConditionTrue, "", "", "")
 			})
 		})

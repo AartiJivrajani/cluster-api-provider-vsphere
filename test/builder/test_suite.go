@@ -104,7 +104,7 @@ func (s *TestSuite) GetEnvTestConfg() *rest.Config {
 }
 
 type Reconciler interface {
-	ReconcileNormal(ctx *vmwarecontext.ClusterContext) (reconcile.Result, error)
+	ReconcileNormal(ctx *vmwarecontext.GuestClusterContext) (reconcile.Result, error)
 }
 
 // NewReconcilerFunc is a base type for functions that return a reconciler
