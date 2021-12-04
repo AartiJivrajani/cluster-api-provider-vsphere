@@ -23,12 +23,7 @@ import (
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
 
-func NewTanzuKubernetesCluster(controlCount, workerCount int32, cni ...string) vmwarev1.VSphereCluster {
-	//if len(cni) > 0 {
-	//	cniName = cni[0]
-	//} else {
-	//	cniName = string(addons.Calico)
-	//}
+func NewVSphereCluster() vmwarev1.VSphereCluster {
 	return vmwarev1.VSphereCluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: Namespace,
