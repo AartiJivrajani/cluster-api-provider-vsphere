@@ -85,4 +85,3 @@ type AddOnSpec struct {
 	// Yaml Template for AddOn
 	Value string `json:"value"`
 }
-

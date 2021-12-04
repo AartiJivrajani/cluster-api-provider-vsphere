@@ -21,8 +21,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-
-	. "github.com/onsi/ginkgo"
+	// nolint
 	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
@@ -42,7 +41,7 @@ var serviceDiscoveryTestSuite = builder.NewTestSuiteForController(AddServiceDisc
 
 // TODO: add back integration tests
 func TestServiceDiscoveryController(t *testing.T) {
-	serviceDiscoveryTestSuite.Register(t, "Service Discovery controller serviceAccountProviderTestsuite", func() { return }, serviceDiscoveryUnitTests)
+	serviceDiscoveryTestSuite.Register(t, "Service Discovery controller serviceAccountProviderTestsuite", serviceDiscoveryUnitTests)
 }
 
 const (

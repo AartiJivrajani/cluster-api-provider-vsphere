@@ -18,10 +18,6 @@ package builder
 
 import (
 	goctx "context"
-	"crypto/tls"
-	"fmt"
-	"net"
-	"path"
 	"sync"
 	"testing"
 	"time"
@@ -31,8 +27,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	vmwarev1 "sigs.k8s.io/cluster-api-provider-vsphere/apis/vmware/v1beta1"
-	"sigs.k8s.io/cluster-api-provider-vsphere/test/remote"
-
 	// nolint
 	. "github.com/onsi/ginkgo"
 	// nolint
@@ -46,17 +40,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 )
-
-var (
-	boolTrue  = true
-	separator = "\n---\n"
-)
-
-func init() {
-	/*klog.InitFlags(nil)
-	klog.SetOutput(GinkgoWriter)
-	logf.SetLogger(klogr.New())*/
-}
 
 // TestSuite is used for unit and integration testing builder.
 type TestSuite struct {
@@ -127,19 +110,19 @@ func (s *TestSuite) init(addToManagerFn manager.AddToManagerFunc, newReconcilerF
 // Use runIntegrationTestsFn to pass a function that will be invoked if
 // integration testing is enabled with
 // Describe("Unit tests", runIntegrationTestsFn).
-func (s *TestSuite) Register(t *testing.T, name string, runIntegrationTestsFn, runUnitTestsFn func()) {
+func (s *TestSuite) Register(t *testing.T, name string, runUnitTestsFn func()) {
 	RegisterFailHandler(Fail)
 
-	if runIntegrationTestsFn == nil {
-		s.flags.IntegrationTestsEnabled = false
-	}
+	//if runIntegrationTestsFn == nil {
+	//	s.flags.IntegrationTestsEnabled = false
+	//}
 	if runUnitTestsFn == nil {
 		s.flags.UnitTestsEnabled = false
 	}
 
-	if s.flags.IntegrationTestsEnabled {
-		Describe("Integration tests", runIntegrationTestsFn)
-	}
+	//if s.flags.IntegrationTestsEnabled {
+	//	Describe("Integration tests", runIntegrationTestsFn)
+	//}
 	if s.flags.UnitTestsEnabled {
 		Describe("Unit tests", runUnitTestsFn)
 	}
@@ -177,9 +160,8 @@ func (s *TestSuite) NewUnitTestContextForControllerWithPrototypeCluster(initObje
 func (s *TestSuite) NewUnitTestContextForControllerWithVSphereCluster(vsphereCluster *vmwarev1.VSphereCluster, prototypeCluster bool, initObjects ...runtime.Object) *UnitTestContextForController {
 	if s.flags.UnitTestsEnabled {
 		ctx := NewUnitTestContextForController(s.newReconcilerFn, vsphereCluster, prototypeCluster, initObjects, nil)
-		//SetTKRRefForVersion(ctx.Cluster, FakeDistributionVersion)
 		reconcileNormalAndExpectSuccess(ctx)
-		// Update the TanzuKubernetesCluster and its status in the fake client.
+		// Update the VSphereCluster and its status in the fake client.
 		Expect(ctx.Client.Update(ctx, ctx.VSphereCluster)).To(Succeed())
 		Expect(ctx.Client.Status().Update(ctx, ctx.VSphereCluster)).To(Succeed())
 
@@ -194,20 +176,6 @@ func reconcileNormalAndExpectSuccess(ctx *UnitTestContextForController) {
 	// not include the Kubernetes envtest package, this is required.
 	//
 	Expect(ctx.ReconcileNormal()).ShouldNot(HaveOccurred())
-}
-
-// BeforeSuite should be invoked by ginkgo.BeforeSuite.
-func (s *TestSuite) BeforeSuite() {
-	if s.flags.IntegrationTestsEnabled {
-		//s.beforeSuiteForIntegrationTesting()
-	}
-}
-
-// AfterSuite should be invoked by ginkgo.AfterSuite.
-func (s *TestSuite) AfterSuite() {
-	if s.flags.IntegrationTestsEnabled {
-		//s.afterSuiteForIntegrationTesting()
-	}
 }
 
 // Create a new Manager with default values
@@ -262,64 +230,4 @@ func (s *TestSuite) startManager() {
 		Expect(s.manager.Start(ctx)).ToNot(HaveOccurred())
 		s.setManagerRunning(false)
 	}()
-}
-
-// Blocks until the manager has stopped running
-// Removes state applied in postConfigureManager()
-func (s *TestSuite) stopManager() {
-	close(s.done)
-	Eventually(func() bool { //nolint:gocritic
-		return s.getManagerRunning()
-	}).Should((BeFalse()))
-	if s.webhookYaml != nil {
-		Eventually(func() error {
-			return remote.DeleteYAML(s, s.integrationTestClient, s.webhookYaml)
-		}).Should(Succeed())
-	}
-}
-
-// Applies configuration to the Manager after it has started
-func (s *TestSuite) postConfigureManager() {
-	// If there's a configured certificate directory then it means one or more
-	// webhooks are being tested. Go ahead and install the webhooks and wait
-	// for the webhook server to come online.
-	if s.isWebhookTest() {
-		By("installing the webhook(s)", func() {
-			// ASSERT that the file for validating webhook file exists.
-			validatingWebhookFile := path.Join(s.flags.RootDir, "config", "webhook", "manifests.yaml")
-			Expect(validatingWebhookFile).Should(BeAnExistingFile())
-
-			// ASSERT that eventually the webhook config gets successfully
-			// applied to the API server.
-			Eventually(func() error {
-				return remote.ApplyYAML(s, s.integrationTestClient, s.webhookYaml)
-			}).Should(Succeed())
-		})
-
-		// It can take a few seconds for the webhook server to come online.
-		// This step blocks until the webserver can be successfully accessed.
-		By("waiting for the webhook server to come online", func() {
-			addr := fmt.Sprintf("%s:%d",
-				s.manager.GetWebhookServer().Host,
-				s.manager.GetWebhookServer().Port)
-			dialer := &net.Dialer{Timeout: time.Second}
-			//nolint:gosec
-			tlsConfig := &tls.Config{InsecureSkipVerify: true}
-			Eventually(func() error {
-				conn, err := tls.DialWithDialer(dialer, "tcp", addr, tlsConfig)
-				if err != nil {
-					return err
-				}
-				conn.Close()
-				return nil
-			}).Should(Succeed())
-		})
-	}
-}
-
-func (s *TestSuite) afterSuiteForIntegrationTesting() {
-	By("tearing down the test environment", func() {
-		close(s.done)
-		Expect(s.envTest.Stop()).To(Succeed())
-	})
 }

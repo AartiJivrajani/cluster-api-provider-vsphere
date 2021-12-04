@@ -1,9 +1,9 @@
 package vmware
 
 import (
-"fmt"
+	"fmt"
 
-"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // GuestClusterContext is the context used for GuestClusterControllers.
@@ -18,4 +18,3 @@ type GuestClusterContext struct {
 func (c *GuestClusterContext) String() string {
 	return fmt.Sprintf("%s %s/%s", c.Cluster.GroupVersionKind(), c.Cluster.Namespace, c.Cluster.Name)
 }
-

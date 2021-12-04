@@ -52,11 +52,11 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	/*	setup()
-		defer func() {
-			fmt.Println("Tearing down test suite")
-			teardown()
-		}()*/
+	setup()
+	defer func() {
+		fmt.Println("Tearing down test suite")
+		teardown()
+	}()
 	code := m.Run()
 	os.Exit(code)
 }

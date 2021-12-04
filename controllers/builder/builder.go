@@ -15,4 +15,3 @@ type ClusterReconciler struct {
 type ServiceAccountReconciler struct {
 	*context.ControllerContext
 }
-

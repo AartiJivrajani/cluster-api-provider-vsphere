@@ -42,7 +42,7 @@ var serviceAccountProviderTestsuite = builder.NewTestSuiteForController(AddServi
 
 func TestServiceAccountProviderController(t *testing.T) {
 	// TODO: [Aarti] - Add the integration test function instead of placeholder
-	serviceAccountProviderTestsuite.Register(t, "ProviderServiceaccount controller serviceAccountProviderTestsuite", func() { return }, serviceAccountProviderUnitTests)
+	serviceAccountProviderTestsuite.Register(t, "ProviderServiceaccount controller serviceAccountProviderTestsuite", serviceAccountProviderUnitTests)
 }
 
 const (
@@ -151,7 +151,7 @@ func assertRoleWithGetPVC(ctx *builder.UnitTestContextForController, ctrlClient 
 	}))
 }
 
-func assertRoleBinding(ctx *builder.UnitTestContextForController, ctrlClient client.Client, namespace, name string) {
+func assertRoleBinding(_ *builder.UnitTestContextForController, ctrlClient client.Client, namespace, name string) {
 	var roleBindingList rbacv1.RoleBindingList
 	opts := &client.ListOptions{
 		Namespace: namespace,
@@ -166,7 +166,7 @@ func assertRoleBinding(ctx *builder.UnitTestContextForController, ctrlClient cli
 		APIGroup: rbacv1.GroupName,
 	}))
 }
-
+// nolint
 func assertProviderServiceAccountsCondition(vCluster *vmwarev1.VSphereCluster, status corev1.ConditionStatus,
 	message string, reason string, severity clusterv1.ConditionSeverity) {
 	c := conditions.Get(vCluster, vmwarev1.ProviderServiceAccountsReadyCondition)
