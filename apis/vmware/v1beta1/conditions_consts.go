@@ -71,7 +71,6 @@ const (
 	ProviderServiceAccountsReconciliationFailedReason = "ProviderServiceAccountsReconciliationFailed"
 )
 
-
 const (
 	SupervisorLoadBalancerSvcNamespace = "kube-system"
 	SupervisorLoadBalancerSvcName      = "kube-apiserver-lb-svc"
@@ -79,7 +78,7 @@ const (
 
 	SupervisorHeadlessSvcNamespace = "default"
 	SupervisorHeadlessSvcName      = "supervisor"
-	SupervisorHeadlessSvcPort = 6443
+	SupervisorHeadlessSvcPort      = 6443
 
 	// ServiceDiscoveryReadyCondition documents the status of service discoveries
 	ServiceDiscoveryReadyCondition clusterv1.ConditionType = "ServiceDiscoveryReady"

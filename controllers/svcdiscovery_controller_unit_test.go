@@ -29,7 +29,7 @@ import (
 )
 
 func serviceDiscoveryUnitTests() {
-	FDescribe("Invoking ReconcileNormal", serviceDiscoveryUnitTestsReconcileNormal)
+	Describe("Invoking ReconcileNormal", serviceDiscoveryUnitTestsReconcileNormal)
 }
 
 func serviceDiscoveryUnitTestsReconcileNormal() {

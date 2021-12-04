@@ -31,50 +31,6 @@ const (
 	AntreaNSXRouted AddonName = "antrea-nsx-routed"
 )
 
-// Antrea mutable objects definition
-// Refer to https://gitlab.eng.vmware.com/core-build/mirrors_github_antrea/raw/topic/gc/build/yamls/antrea-mutable.yaml
-func antreaMutableObjs() []byte {
-	return []byte(`
-apiVersion: apiregistration.k8s.io/v1
-kind: APIService
-metadata:
-  labels:
-    app: antrea
-  name: v1beta1.networking.antrea.tanzu.vmware.com
-spec:
-  group: networking.antrea.tanzu.vmware.com
-  groupPriorityMinimum: 100
-  service:
-    name: antrea
-    namespace: kube-system
-  version: v1beta1
-  versionPriority: 100
----
-apiVersion: apiregistration.k8s.io/v1
-kind: APIService
-metadata:
-  labels:
-    app: antrea
-  name: v1beta1.system.antrea.tanzu.vmware.com
-spec:
-  group: system.antrea.tanzu.vmware.com
-  groupPriorityMinimum: 100
-  service:
-    name: antrea
-    namespace: kube-system
-  version: v1beta1
-  versionPriority: 100
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  labels:
-    app: antrea
-  name: antrea-ca
-  namespace: kube-system
-`)
-}
-
 type AddOnSpec struct {
 	// String Version of the AddOn AddonName ("calico", "pvcsi"..)
 	Name string `json:"name"`

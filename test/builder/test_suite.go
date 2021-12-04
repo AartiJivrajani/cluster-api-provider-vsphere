@@ -37,7 +37,6 @@ import (
 
 	"sigs.k8s.io/cluster-api-provider-vsphere/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 )
 
@@ -49,14 +48,12 @@ type TestSuite struct {
 	integrationTestClient client.Client
 	config                *rest.Config
 	done                  chan struct{}
-	envTest               envtest.Environment
 	flags                 TestFlags
 	manager               manager.Manager
 	newReconcilerFn       NewReconcilerFunc
 	webhookName           string
 	managerRunning        bool
 	managerRunningMutex   sync.Mutex
-	webhookYaml           []byte
 }
 
 func (s *TestSuite) isWebhookTest() bool {

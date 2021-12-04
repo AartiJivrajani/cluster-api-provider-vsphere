@@ -166,6 +166,7 @@ func assertRoleBinding(_ *builder.UnitTestContextForController, ctrlClient clien
 		APIGroup: rbacv1.GroupName,
 	}))
 }
+
 // nolint
 func assertProviderServiceAccountsCondition(vCluster *vmwarev1.VSphereCluster, status corev1.ConditionStatus,
 	message string, reason string, severity clusterv1.ConditionSeverity) {
