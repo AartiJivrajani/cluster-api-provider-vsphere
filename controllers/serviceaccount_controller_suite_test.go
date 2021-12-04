@@ -28,7 +28,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	//"k8s.io/apimachinery/pkg/runtime"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -43,12 +42,8 @@ var serviceAccountProviderTestsuite = builder.NewTestSuiteForController(AddServi
 
 func TestServiceAccountProviderController(t *testing.T) {
 	// TODO: [Aarti] - Add the integration test function instead of placeholder
-	serviceAccountProviderTestsuite.Register(t, "ProviderServiceaccount controller serviceAccountProviderTestsuite", func() { return }, unitTests)
+	serviceAccountProviderTestsuite.Register(t, "ProviderServiceaccount controller serviceAccountProviderTestsuite", func() { return }, serviceAccountProviderUnitTests)
 }
-
-/*var _ = BeforeSuite(serviceAccountProviderTestsuite.BeforeSuite)
-
-var _ = AfterSuite(serviceAccountProviderTestsuite.AfterSuite)*/
 
 const (
 	testNS                     = "test-namespace"
@@ -68,20 +63,6 @@ const (
 var (
 	truePointer = true
 )
-
-//func createTestResource(ctx context.Context, ctrlClient client.Client, obj runtime.Object) {
-//	Expect(ctrlClient.Create(ctx, obj)).To(Succeed())
-//}
-//
-//func deleteTestResource(ctx context.Context, ctrlClient client.Client, obj runtime.Object) {
-//	Expect(ctrlClient.Delete(ctx, obj)).To(Succeed())
-//}
-
-//func createTestProviderSvcAccountWithInvalidRef(ctx context.Context, ctrlClient client.Client, namespace string, tanzukubernetescluster *tkgv1.TanzuKubernetesCluster) {
-//	pSvcAccount := getTestProviderServiceAccount(namespace, testProviderSvcAccountName, tanzukubernetescluster)
-//	pSvcAccount.Spec.Ref = &corev1.ObjectReference{}
-//	createTestResource(ctx, ctrlClient, pSvcAccount)
-//}
 
 func createTargetSecretWithInvalidToken(ctx *builder.UnitTestContextForController, guestClient client.Client) {
 	secret := getTestTargetSecretWithInvalidToken()

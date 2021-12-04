@@ -19,20 +19,18 @@ package controllers
 import (
 	"os"
 
-	"sigs.k8s.io/cluster-api-provider-vsphere/test/builder"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-
 	vmwarev1 "sigs.k8s.io/cluster-api-provider-vsphere/apis/vmware/v1beta1"
-	_ "sigs.k8s.io/cluster-api-provider-vsphere/pkg/context"
 	"sigs.k8s.io/cluster-api-provider-vsphere/pkg/context/fake"
+	"sigs.k8s.io/cluster-api-provider-vsphere/test/builder"
 )
 
-func unitTests() {
-	FDescribe("Invoking ReconcileNormal", unitTestsReconcileNormal)
+func serviceAccountProviderUnitTests() {
+	Describe("Invoking ReconcileNormal", unitTestsReconcileNormal)
 }
 
 func unitTestsReconcileNormal() {
@@ -43,10 +41,9 @@ func unitTestsReconcileNormal() {
 	)
 
 	JustBeforeEach(func() {
-		// Note: The provider service account requires a reference to the tanzukubernetescluster hence the need to create
-		// a fake tanzu kubernetes cluster in the test and pass it to during context setup.
-
-		ctx = serviceAccountProviderTestsuite.NewUnitTestContextForControllerWithTanzuKubernetesCluster(vsphereCluster, false, initObjects...)
+		// Note: The service account provider requires a reference to the vSphereCluster hence the need to create
+		// a fake vSphereCluster in the test and pass it to during context setup.
+		ctx = serviceAccountProviderTestsuite.NewUnitTestContextForControllerWithVSphereCluster(vsphereCluster, false, initObjects...)
 	})
 	AfterEach(func() {
 		ctx = nil
@@ -62,7 +59,7 @@ func unitTestsReconcileNormal() {
 
 	Describe("When the ProviderServiceAccount is created", func() {
 		BeforeEach(func() {
-			obj := fake.NewTanzuKubernetesCluster(3, 3)
+			obj := fake.NewVSphereCluster()
 			vsphereCluster = &obj
 			vsphereCluster.Namespace = testNS
 			_ = os.Setenv("SERVICE_ACCOUNTS_CM_NAMESPACE", testSystemSvcAcctNs)
@@ -84,7 +81,7 @@ func unitTestsReconcileNormal() {
 		})
 		Context("When serviceaccount secret is modified", func() {
 			It("Should reconcile", func() {
-				// This is to simulate an outdate token that will be replaced when the serviceaccount secret is created.
+				// This is to simulate an outdated token that will be replaced when the serviceaccount secret is created.
 				createTargetSecretWithInvalidToken(ctx, ctx.GuestClient)
 				updateServiceAccountSecretAndReconcileNormal(ctx)
 				By("Updating the target secret in the target namespace")

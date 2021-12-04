@@ -17,19 +17,12 @@ limitations under the License.
 package controllers
 
 import (
-	_context "context"
+	goctx "context"
 	"fmt"
 	"os"
 	"reflect"
 	"strconv"
 	"strings"
-
-	"sigs.k8s.io/cluster-api-provider-vsphere/pkg/record"
-	"sigs.k8s.io/cluster-api-provider-vsphere/test/builder"
-	"sigs.k8s.io/cluster-api/controllers/remote"
-	"sigs.k8s.io/cluster-api/util/patch"
-	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -37,20 +30,27 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	"sigs.k8s.io/cluster-api/controllers/remote"
 	"sigs.k8s.io/cluster-api/util/conditions"
+	"sigs.k8s.io/cluster-api/util/patch"
+
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	vmwarev1 "sigs.k8s.io/cluster-api-provider-vsphere/apis/vmware/v1beta1"
-
 	"sigs.k8s.io/cluster-api-provider-vsphere/pkg/context"
 	vmwarecontext "sigs.k8s.io/cluster-api-provider-vsphere/pkg/context/vmware"
-	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/cluster-api-provider-vsphere/pkg/record"
+	"sigs.k8s.io/cluster-api-provider-vsphere/test/builder"
 )
 
 const (
@@ -62,10 +62,8 @@ const (
 // AddToManager adds this package's controller to the provided manager.
 func AddServiceAccountProviderControllerToManager(ctx *context.ControllerManagerContext, mgr manager.Manager) error {
 	var (
-		controlledType     = &vmwarev1.ProviderServiceAccount{}
-		controlledTypeName = reflect.TypeOf(controlledType).Elem().Name()
-		//controlledTypeGVK   = infrav1.GroupVersion.WithKind(controlledTypeName)
-		//controlledTypeGVK = vmwarev1.GroupVersion.WithKind(controlledTypeName)
+		controlledType      = &vmwarev1.ProviderServiceAccount{}
+		controlledTypeName  = reflect.TypeOf(controlledType).Elem().Name()
 		controllerNameShort = fmt.Sprintf("%s-supervisor-controller", strings.ToLower(controlledTypeName))
 		controllerNameLong  = fmt.Sprintf("%s/%s/%s", ctx.Namespace, ctx.Name, controllerNameShort)
 	)
@@ -145,7 +143,6 @@ type requestMapper struct {
 	ctx *context.ControllerManagerContext
 }
 
-// TODO: [Aarti] - maybe remove the requestMapper, and directly call a getVsphereCluster in the Watch.
 func (d requestMapper) Map(o client.Object) []reconcile.Request {
 	// If the watched object [role|rolebinding|serviceaccount] is owned by this providerserviceaccount controller, then
 	// lookup the vsphere cluster that owns the providerserviceaccount object that needs to be queued. We do this because
@@ -180,10 +177,10 @@ type ServiceAccountReconciler struct {
 	*context.ControllerContext
 }
 
-func (r ServiceAccountReconciler) Reconcile(ctx _context.Context, req reconcile.Request) (_ reconcile.Result, reterr error) {
+func (r ServiceAccountReconciler) Reconcile(ctx goctx.Context, req reconcile.Request) (_ reconcile.Result, reterr error) {
 	r.ControllerContext.Logger.V(4).Info("Starting Reconcile")
 
-	// Get the vspherecluster for this request.
+	// Get the vSphereCluster for this request.
 	vsphereCluster := &vmwarev1.VSphereCluster{}
 	clusterKey := client.ObjectKey{Namespace: req.Namespace, Name: req.Name}
 	if err := r.Client.Get(r, clusterKey, vsphereCluster); err != nil {
@@ -239,20 +236,6 @@ func (r ServiceAccountReconciler) Reconcile(ctx _context.Context, req reconcile.
 		clusterContext.Logger.Info("The control plane is not ready yet", "err", err)
 		return reconcile.Result{RequeueAfter: clusterNotReadyRequeueTime}, nil
 	}
-
-	//// All controllers should wait until the PSP are created and bind successfully by DefaultPSP controller.
-	//for _, requiredComponent := range r.RequiredComponents() {
-	//	if requiredComponent == DefaultPSP {
-	//		// Do not reconcile until the default PSP are created.
-	//		pspStatus := status.FindAddonStatusByType(clusterContext.Cluster, vmwarev1.PSP)
-	//		if pspStatus == nil || status.IsFalseCondition(pspStatus, tkgv1.ProvisionedCondition) {
-	//			clusterContext.Logger.Info("Skipping reconcile until PSP Addon ProvisionedCondition is true",
-	//				"cluster", clusterContext.String())
-	//			// No need to requeue because the change of Cluster.Status.Addons.PSP.Applied will trigger reconcile.
-	//			return reconcile.Result{}, nil
-	//		}
-	//	}
-	//}
 
 	// Defer to the Reconciler for reconciling a non-delete event.
 	return r.ReconcileNormal(&vmwarecontext.GuestClusterContext{
@@ -460,7 +443,6 @@ func (r ServiceAccountReconciler) syncServiceAccountSecret(ctx *vmwarecontext.Gu
 		}
 	}
 
-	// Note: We ignore the Secret type & annotations because they are created by the token controller and will not be valid in the target cluster.
 	targetSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      pSvcAccount.Spec.TargetSecretName,
