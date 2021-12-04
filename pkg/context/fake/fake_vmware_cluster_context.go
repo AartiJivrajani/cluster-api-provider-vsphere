@@ -13,7 +13,7 @@ func NewVmwareClusterContext(ctx *context.ControllerContext, vsphereCluster *inf
 	// Create the cluster resources.
 	cluster := newClusterV1()
 	if vsphereCluster == nil {
-		v := NewTanzuKubernetesCluster(3, 3)
+		v := NewVSphereCluster()
 		vsphereCluster = &v
 	}
 
