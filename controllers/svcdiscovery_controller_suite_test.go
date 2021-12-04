@@ -1,5 +1,18 @@
-// Copyright (c) 2019 VMware, Inc. All Rights Reserved.
-// SPDX-License-Identifier: Apache-2.0
+/*
+Copyright 2021 The Kubernetes Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 
 package controllers
 
@@ -11,49 +24,36 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	bootstrapapi "k8s.io/cluster-bootstrap/token/api"
-	vmwarev1beta1 "sigs.k8s.io/cluster-api-provider-vsphere/apis/vmware/v1beta1"
-	"sigs.k8s.io/cluster-api-provider-vsphere/test/builder"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	vmwarev1beta1 "sigs.k8s.io/cluster-api-provider-vsphere/apis/vmware/v1beta1"
+	"sigs.k8s.io/cluster-api-provider-vsphere/test/builder"
 )
 
 // serviceAccountProviderTestsuite is used for unit and integration testing this controller.
-var serviceDiscoveryTestSuite = builder.NewTestSuiteForController(AddServiceDiscoveryControllerToManager, NewServiceDiscoveryReconciler)
+var serviceDiscoveryTestSuite = builder.NewTestSuiteForController(AddServiceDiscoveryControllerToManager, newServiceDiscoveryReconciler)
 
-// TODO: add intg tests back
+// TODO: add back integration tests
 func TestServiceDiscoveryController(t *testing.T) {
-	serviceDiscoveryTestSuite.Register(t, "Service Discovery controller serviceAccountProviderTestsuite", func() {return}, serviceDiscoveryUnitTests)
+	serviceDiscoveryTestSuite.Register(t, "Service Discovery controller serviceAccountProviderTestsuite", func() { return }, serviceDiscoveryUnitTests)
 }
-
-var _ = BeforeSuite(serviceDiscoveryTestSuite.BeforeSuite)
-
-var _ = AfterSuite(serviceDiscoveryTestSuite.AfterSuite)
 
 const (
 	testSupervisorAPIServerVIP         = "10.0.0.100"
-	testSupervisorAPIServerVIP2        = "10.0.0.200"
 	testSupervisorAPIServerVIPHostName = "vip.example.com"
 	testSupervisorAPIServerFIP         = "192.168.1.100"
 	testSupervisorAPIServerFIPHostName = "fip.example.com"
 	testSupervisorAPIServerPort        = 6443
 
-	supervisorHeadlessSvcFQDN = "supervisor.default.svc"
 	supervisorHeadlessSvcPort = 6443
 )
-
-//func assertEventuallyExistsInNamespace(ctx context.Context, guestClient client.Client, namespace, name string, obj runtime.Object) {
-//	EventuallyWithOffset(4, func() error {
-//		key := client.ObjectKey{Namespace: namespace, Name: name}
-//		return guestClient.Get(ctx, key, obj)
-//	}).Should(Succeed())
-//}
 
 func assertEventuallyDoesNotExistInNamespace(ctx context.Context, guestClient client.Client, namespace, name string, obj client.Object) {
 	EventuallyWithOffset(4, func() error {
@@ -94,18 +94,6 @@ func assertHeadlessSvcWithVIPHostnameEndpoints(ctx context.Context, guestClient 
 	Expect(headlessEndpoints.Subsets[0].Ports[0].Port).To(Equal(int32(supervisorAPIServerPort)))
 }
 
-func assertHeadlessSvcWithUpdatedVIPEndpoints(ctx context.Context, guestClient client.Client, namespace, name string) {
-	assertHeadlessSvc(ctx, guestClient, namespace, name)
-	headlessEndpoints := &corev1.Endpoints{}
-	assertEventuallyExistsInNamespace(ctx, guestClient, namespace, name, headlessEndpoints)
-	EventuallyWithOffset(2, func() string {
-		key := client.ObjectKey{Namespace: namespace, Name: name}
-		Expect(guestClient.Get(ctx, key, headlessEndpoints)).Should(Succeed())
-		return headlessEndpoints.Subsets[0].Addresses[0].IP
-	}).Should(Equal(testSupervisorAPIServerVIP))
-	Expect(headlessEndpoints.Subsets[0].Ports[0].Port).To(Equal(int32(supervisorAPIServerPort)))
-}
-
 func assertHeadlessSvcWithFIPEndpoints(ctx context.Context, guestClient client.Client, namespace, name string) {
 	assertHeadlessSvc(ctx, guestClient, namespace, name)
 	headlessEndpoints := &corev1.Endpoints{}
@@ -134,31 +122,6 @@ func assertServiceDiscoveryCondition(vsphereCluster *vmwarev1beta1.VSphereCluste
 	Expect(c.Status).To(Equal(status))
 	Expect(c.Reason).To(Equal(reason))
 	Expect(c.Severity).To(Equal(severity))
-}
-
-func createObjects(ctx context.Context, ctrlClient client.Client, runtimeObjects []client.Object) {
-	for _, obj := range runtimeObjects {
-		Expect(ctrlClient.Create(ctx, obj)).To(Succeed())
-	}
-}
-
-func updateObjectsStatus(ctx context.Context, ctrlClient client.StatusClient, runtimeObjects []client.Object) {
-	for _, obj := range runtimeObjects {
-		Expect(ctrlClient.Status().Update(ctx, obj)).To(Succeed())
-	}
-}
-
-func deleteObjects(ctx context.Context, ctrlClient client.Client, runtimeObjects []client.Object) {
-	for i := range runtimeObjects {
-		obj := runtimeObjects[i]
-		Expect(ctrlClient.Delete(ctx, obj)).To(Succeed())
-		m, err := meta.Accessor(obj)
-		Expect(err).NotTo(HaveOccurred())
-		EventuallyWithOffset(2, func() error {
-			key := client.ObjectKey{Namespace: m.GetNamespace(), Name: m.GetName()}
-			return ctrlClient.Get(ctx, key, obj)
-		}).ShouldNot(Succeed())
-	}
 }
 
 func newTestSupervisorLBServiceWithIPStatus() *corev1.Service {
@@ -206,45 +169,6 @@ func newTestSupervisorLBService() *corev1.Service {
 			},
 		},
 	}
-}
-
-func newTestHeadlessSvcEndpoints() []runtime.Object {
-	svc := &corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      supervisorHeadlessSvcName,
-			Namespace: supervisorHeadlessSvcNamespace,
-		},
-		Spec: corev1.ServiceSpec{
-			ClusterIP: corev1.ClusterIPNone,
-			Ports: []corev1.ServicePort{
-				{
-					Port:       supervisorHeadlessSvcPort,
-					TargetPort: intstr.FromInt(supervisorAPIServerPort),
-				},
-			},
-		},
-	}
-	endpoint := &corev1.Endpoints{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      supervisorHeadlessSvcName,
-			Namespace: supervisorHeadlessSvcNamespace,
-		},
-		Subsets: []corev1.EndpointSubset{
-			{
-				Addresses: []corev1.EndpointAddress{
-					{
-						IP: testSupervisorAPIServerVIP2,
-					},
-				},
-				Ports: []corev1.EndpointPort{
-					{
-						Port: int32(supervisorAPIServerPort),
-					},
-				},
-			},
-		},
-	}
-	return []runtime.Object{svc, endpoint}
 }
 
 func newTestConfigMapWithHost(serverHost string) *corev1.ConfigMap {

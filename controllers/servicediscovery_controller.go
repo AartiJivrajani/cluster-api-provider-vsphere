@@ -19,21 +19,10 @@ package controllers
 import (
 	goctx "context"
 	"fmt"
-	"sigs.k8s.io/cluster-api-provider-vsphere/test/builder"
-	"time"
-
-	"sigs.k8s.io/cluster-api/controllers/remote"
-
-	//rbacv1 "k8s.io/api/rbac/v1"
 	"net"
 	"net/url"
 	"reflect"
-
-	"sigs.k8s.io/cluster-api-provider-vsphere/pkg/record"
-	"sigs.k8s.io/cluster-api/util/patch"
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"time"
 
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -45,17 +34,24 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	bootstrapapi "k8s.io/cluster-bootstrap/token/api"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	"sigs.k8s.io/cluster-api/controllers/remote"
 	"sigs.k8s.io/cluster-api/util/conditions"
+	"sigs.k8s.io/cluster-api/util/patch"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	vmwarev1 "sigs.k8s.io/cluster-api-provider-vsphere/apis/vmware/v1beta1"
 	"sigs.k8s.io/cluster-api-provider-vsphere/pkg/context"
 	vmwarecontext "sigs.k8s.io/cluster-api-provider-vsphere/pkg/context/vmware"
+	"sigs.k8s.io/cluster-api-provider-vsphere/pkg/record"
+	"sigs.k8s.io/cluster-api-provider-vsphere/test/builder"
 )
 
 const (
@@ -70,7 +66,12 @@ const (
 	supervisorHeadlessSvcName      = "supervisor"
 )
 
-// AddToManager adds this package's controller to the provided manager.
+// +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=services/status,verbs=get
+// +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=configmaps/status,verbs=get
+
+// AddServiceDiscoveryControllerToManager adds the ServiceDiscovery controller to the provided manager.
 func AddServiceDiscoveryControllerToManager(ctx *context.ControllerManagerContext, mgr manager.Manager) error {
 	var (
 		controllerNameShort = controllerName
@@ -117,7 +118,8 @@ func AddServiceDiscoveryControllerToManager(ctx *context.ControllerManagerContex
 	configMapCache, err := cache.New(mgr.GetConfig(), cache.Options{
 		Scheme: mgr.GetScheme(),
 		Mapper: mgr.GetRESTMapper(),
-		// Resync: ctx.SyncPeriod,
+		// TODO: Reintroduce the cache sync period
+		//Resync:    ctx.SyncPeriod,
 		Namespace: metav1.NamespacePublic,
 	})
 	if err != nil {
@@ -132,6 +134,7 @@ func AddServiceDiscoveryControllerToManager(ctx *context.ControllerManagerContex
 		Watches(
 			&source.Kind{Type: &vmwarev1.VSphereCluster{}}, &handler.EnqueueRequestForObject{},
 		).
+		WithEventFilter(clusterPredicates).
 		Watches(
 			&source.Kind{Type: &corev1.Service{}},
 			handler.EnqueueRequestsFromMapFunc(svcMapper{ctx: controllerContext.ControllerManagerContext}.Map),
@@ -140,7 +143,6 @@ func AddServiceDiscoveryControllerToManager(ctx *context.ControllerManagerContex
 			src,
 			handler.EnqueueRequestsFromMapFunc(configMapMapper{ctx: controllerContext.ControllerManagerContext}.Map),
 		).
-		WithEventFilter(clusterPredicates).
 		// watch the CAPI cluster
 		Watches(
 			&source.Kind{Type: &clusterv1.Cluster{}}, &handler.EnqueueRequestForOwner{
@@ -151,8 +153,7 @@ func AddServiceDiscoveryControllerToManager(ctx *context.ControllerManagerContex
 		Complete(r)
 }
 
-// TODO: dont export this method
-func NewServiceDiscoveryReconciler() builder.Reconciler {
+func newServiceDiscoveryReconciler() builder.Reconciler {
 	return serviceDiscoveryReconciler{}
 }
 
@@ -161,14 +162,15 @@ type serviceDiscoveryReconciler struct {
 }
 
 func (r serviceDiscoveryReconciler) Reconcile(ctx goctx.Context, req reconcile.Request) (_ reconcile.Result, reterr error) {
-	r.ControllerContext.Logger.V(4).Info("Starting Reconcile")
+	logger := r.Logger.WithName(req.Namespace).WithName(req.Name)
+	logger.V(4).Info("Starting Reconcile")
 
 	// Get the vspherecluster for this request.
 	vsphereCluster := &vmwarev1.VSphereCluster{}
 	clusterKey := client.ObjectKey{Namespace: req.Namespace, Name: req.Name}
 	if err := r.Client.Get(r, clusterKey, vsphereCluster); err != nil {
 		if apierrors.IsNotFound(err) {
-			r.Logger.Info("Cluster not found, won't reconcile", "cluster", clusterKey)
+			logger.Info("Cluster not found, won't reconcile", "cluster", clusterKey)
 			return reconcile.Result{}, nil
 		}
 		return reconcile.Result{}, err
@@ -189,7 +191,7 @@ func (r serviceDiscoveryReconciler) Reconcile(ctx goctx.Context, req reconcile.R
 	clusterContext := &vmwarecontext.ClusterContext{
 		ControllerContext: r.ControllerContext,
 		VSphereCluster:    vsphereCluster,
-		Logger:            r.Logger.WithName(req.Namespace).WithName(req.Name),
+		Logger:            logger,
 		PatchHelper:       patchHelper,
 	}
 
@@ -217,23 +219,9 @@ func (r serviceDiscoveryReconciler) Reconcile(ctx goctx.Context, req reconcile.R
 	// the Kubeconfig data used to access the target cluster.
 	guestClient, err := remote.NewClusterClient(clusterContext, serviceDiscoverControllerName, clusterContext.Client, clusterKey)
 	if err != nil {
-		clusterContext.Logger.Info("The control plane is not ready yet", "err", err)
+		logger.Info("The control plane is not ready yet", "err", err)
 		return reconcile.Result{RequeueAfter: clusterNotReadyRequeueTime}, nil
 	}
-
-	//// All controllers should wait until the PSP are created and bind successfully by DefaultPSP controller.
-	//for _, requiredComponent := range r.RequiredComponents() {
-	//	if requiredComponent == DefaultPSP {
-	//		// Do not reconcile until the default PSP are created.
-	//		pspStatus := status.FindAddonStatusByType(clusterContext.Cluster, vmwarev1.PSP)
-	//		if pspStatus == nil || status.IsFalseCondition(pspStatus, tkgv1.ProvisionedCondition) {
-	//			clusterContext.Logger.Info("Skipping reconcile until PSP Addon ProvisionedCondition is true",
-	//				"cluster", clusterContext.String())
-	//			// No need to requeue because the change of Cluster.Status.Addons.PSP.Applied will trigger reconcile.
-	//			return reconcile.Result{}, nil
-	//		}
-	//	}
-	//}
 
 	// Defer to the Reconciler for reconciling a non-delete event.
 	return r.ReconcileNormal(&vmwarecontext.GuestClusterContext{
@@ -279,11 +267,6 @@ func allClustersRequests(ctx *context.ControllerManagerContext) []reconcile.Requ
 	}
 	return requests
 }
-
-// +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch
-// +kubebuilder:rbac:groups="",resources=services/status,verbs=get
-// +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch
-// +kubebuilder:rbac:groups="",resources=configmaps/status,verbs=get
 
 func (r serviceDiscoveryReconciler) ReconcileNormal(ctx *vmwarecontext.GuestClusterContext) (reconcile.Result, error) {
 	ctx.Logger.V(4).Info("Reconciling Service Discovery", "cluster", ctx.VSphereCluster.Name)
