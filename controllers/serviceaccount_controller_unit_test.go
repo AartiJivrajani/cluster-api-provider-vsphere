@@ -29,9 +29,7 @@ import (
 	"sigs.k8s.io/cluster-api-provider-vsphere/pkg/context/fake"
 )
 
-func serviceAccountProviderUnitTests() {
-	Describe("Invoking ReconcileNormal", unitTestsReconcileNormal)
-}
+var _ = Describe("ServiceAccountReconciler ReconcileNormal", unitTestsReconcileNormal)
 
 func unitTestsReconcileNormal() {
 	var (

@@ -19,7 +19,6 @@ package controllers
 import (
 	goctx "context"
 	"strings"
-	"testing"
 	"time"
 
 	. "github.com/onsi/gomega"
@@ -40,10 +39,10 @@ import (
 // Integration tests will be run using the existing envTest setup.
 var serviceAccountProviderTestsuite = builder.NewTestSuiteForController(AddServiceAccountProviderControllerToManager, NewServiceAccountReconciler)
 
-func TestServiceAccountProviderController(t *testing.T) {
+/*func TestServiceAccountProviderController(t *testing.T) {
 	// TODO: [Aarti] - Add the integration test function instead of placeholder
-	serviceAccountProviderTestsuite.Register(t, "ProviderServiceaccount controller serviceAccountProviderTestsuite", serviceAccountProviderUnitTests)
-}
+	serviceAccountProviderTestsuite.Register(t, "ProviderServiceaccount controller suite", serviceAccountProviderUnitTests)
+}*/
 
 const (
 	testNS                     = "test-namespace"

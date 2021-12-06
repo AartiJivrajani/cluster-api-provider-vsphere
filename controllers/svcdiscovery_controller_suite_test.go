@@ -20,7 +20,6 @@ import (
 	"context"
 	"strconv"
 	"strings"
-	"testing"
 
 	// nolint
 	. "github.com/onsi/gomega"
@@ -41,9 +40,9 @@ import (
 var serviceDiscoveryTestSuite = builder.NewTestSuiteForController(AddServiceDiscoveryControllerToManager, newServiceDiscoveryReconciler)
 
 // TODO: add back integration tests
-func TestServiceDiscoveryController(t *testing.T) {
+/*func TestServiceDiscoveryController(t *testing.T) {
 	serviceDiscoveryTestSuite.Register(t, "Service Discovery controller serviceAccountProviderTestsuite", serviceDiscoveryUnitTests)
-}
+}*/
 
 const (
 	testSupervisorAPIServerVIP         = "10.0.0.100"

@@ -28,9 +28,7 @@ import (
 	"sigs.k8s.io/cluster-api-provider-vsphere/pkg/builder"
 )
 
-func serviceDiscoveryUnitTests() {
-	Describe("Invoking ReconcileNormal", serviceDiscoveryUnitTestsReconcileNormal)
-}
+var _ = Describe("ServiceDiscoveryReconciler ReconcileNormal", serviceDiscoveryUnitTestsReconcileNormal)
 
 func serviceDiscoveryUnitTestsReconcileNormal() {
 	var (
