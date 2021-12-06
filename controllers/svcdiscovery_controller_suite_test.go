@@ -34,7 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	vmwarev1beta1 "sigs.k8s.io/cluster-api-provider-vsphere/apis/vmware/v1beta1"
-	"sigs.k8s.io/cluster-api-provider-vsphere/test/builder"
+	"sigs.k8s.io/cluster-api-provider-vsphere/pkg/builder"
 )
 
 // serviceAccountProviderTestsuite is used for unit and integration testing this controller.

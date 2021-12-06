@@ -25,7 +25,7 @@ import (
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 
 	vmwarev1b1 "sigs.k8s.io/cluster-api-provider-vsphere/apis/vmware/v1beta1"
-	"sigs.k8s.io/cluster-api-provider-vsphere/test/builder"
+	"sigs.k8s.io/cluster-api-provider-vsphere/pkg/builder"
 )
 
 func serviceDiscoveryUnitTests() {
