@@ -27,7 +27,7 @@ func NewVmwareClusterContext(ctx *context.ControllerContext, vsphereCluster *inf
 
 	return &vmware.ClusterContext{
 		ControllerContext: ctx,
-		VSphereCluster: vsphereCluster,
-		Logger:         ctx.Logger.WithName(vsphereCluster.Name),
+		VSphereCluster:    vsphereCluster,
+		Logger:            ctx.Logger.WithName(vsphereCluster.Name),
 	}
 }
