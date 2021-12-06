@@ -54,14 +54,14 @@ const (
 	supervisorHeadlessSvcPort = 6443
 )
 
-func assertEventuallyDoesNotExistInNamespace(ctx context.Context, guestClient client.Client, namespace, name string, obj client.Object) {
+func assertEventuallyDoesNotExistInNamespace(ctx context.Context, guestClient client.Client, namespace, name string, obj client.Object) { // nolint
 	EventuallyWithOffset(4, func() error {
 		key := client.ObjectKey{Namespace: namespace, Name: name}
 		return guestClient.Get(ctx, key, obj)
 	}).ShouldNot(Succeed())
 }
 
-func assertHeadlessSvc(ctx context.Context, guestClient client.Client, namespace, name string) {
+func assertHeadlessSvc(ctx context.Context, guestClient client.Client, namespace, name string) { // nolint
 	headlessSvc := &corev1.Service{}
 	EventuallyWithOffset(4, func() error {
 		key := client.ObjectKey{Namespace: namespace, Name: name}

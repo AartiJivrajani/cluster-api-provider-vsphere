@@ -63,19 +63,19 @@ var (
 	truePointer = true
 )
 
-func createTargetSecretWithInvalidToken(ctx *builder.UnitTestContextForController, guestClient client.Client) {
+func createTargetSecretWithInvalidToken(ctx *builder.UnitTestContextForController, guestClient client.Client) { // nolint
 	secret := getTestTargetSecretWithInvalidToken()
 	Expect(guestClient.Create(ctx, secret)).To(Succeed())
 }
 
-func assertEventuallyExistsInNamespace(ctx goctx.Context, c client.Client, namespace, name string, obj client.Object) {
+func assertEventuallyExistsInNamespace(ctx goctx.Context, c client.Client, namespace, name string, obj client.Object) { // nolint
 	EventuallyWithOffset(2, func() error {
 		key := client.ObjectKey{Namespace: namespace, Name: name}
 		return c.Get(ctx, key, obj)
 	}).Should(Succeed())
 }
 
-func assertNoEntities(ctx *builder.UnitTestContextForController, ctrlClient client.Client, namespace string) {
+func assertNoEntities(ctx *builder.UnitTestContextForController, ctrlClient client.Client, namespace string) { // nolint
 	Consistently(func() int {
 		var serviceAccountList corev1.ServiceAccountList
 		err := ctrlClient.List(ctx, &serviceAccountList, client.InNamespace(namespace))
@@ -122,7 +122,7 @@ func assertTargetSecret(ctx *builder.UnitTestContextForController, guestClient c
 	}).Should(Equal([]byte(testSecretToken)))
 }
 
-func assertTargetNamespace(ctx *builder.UnitTestContextForController, guestClient client.Client, namespaceName string, isExist bool) {
+func assertTargetNamespace(ctx *builder.UnitTestContextForController, guestClient client.Client, namespaceName string, isExist bool) { // nolint
 	namespace := &corev1.Namespace{}
 	err := guestClient.Get(ctx, client.ObjectKey{Name: namespaceName}, namespace)
 	if isExist {
@@ -132,7 +132,7 @@ func assertTargetNamespace(ctx *builder.UnitTestContextForController, guestClien
 	}
 }
 
-func assertRoleWithGetPVC(ctx *builder.UnitTestContextForController, ctrlClient client.Client, namespace, name string) {
+func assertRoleWithGetPVC(ctx *builder.UnitTestContextForController, ctrlClient client.Client, namespace, name string) { // nolint
 	var roleList rbacv1.RoleList
 	opts := &client.ListOptions{
 		Namespace: namespace,
@@ -150,7 +150,7 @@ func assertRoleWithGetPVC(ctx *builder.UnitTestContextForController, ctrlClient 
 	}))
 }
 
-func assertRoleBinding(_ *builder.UnitTestContextForController, ctrlClient client.Client, namespace, name string) {
+func assertRoleBinding(_ *builder.UnitTestContextForController, ctrlClient client.Client, namespace, name string) { // nolint
 	var roleBindingList rbacv1.RoleBindingList
 	opts := &client.ListOptions{
 		Namespace: namespace,

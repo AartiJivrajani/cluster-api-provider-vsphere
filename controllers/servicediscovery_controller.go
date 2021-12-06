@@ -391,7 +391,7 @@ func NewSupervisorHeadlessServiceEndpoints(targetHost string, targetPort int) *c
 	}
 }
 
-func GetSupervisorAPIServerVIP(client client.Client) (string, error) {
+func GetSupervisorAPIServerVIP(client client.Client) (string, error) { // nolint
 	svc := &corev1.Service{}
 	svcKey := types.NamespacedName{Name: vmwarev1.SupervisorLoadBalancerSvcName, Namespace: vmwarev1.SupervisorLoadBalancerSvcNamespace}
 	if err := client.Get(goctx.Background(), svcKey, svc); err != nil {
@@ -423,7 +423,7 @@ func GetSupervisorAPIServerFIP(client client.Client) (string, error) {
 	return host, nil
 }
 
-func getSupervisorAPIServerURLWithFIP(client client.Client) (string, error) {
+func getSupervisorAPIServerURLWithFIP(client client.Client) (string, error) { // nolint
 	cm := &corev1.ConfigMap{}
 	cmKey := types.NamespacedName{Name: bootstrapapi.ConfigMapClusterInfo, Namespace: metav1.NamespacePublic}
 	if err := client.Get(goctx.Background(), cmKey, cm); err != nil {
