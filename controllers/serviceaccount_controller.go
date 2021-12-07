@@ -59,7 +59,7 @@ const (
 	systemServiceAccountPrefix = "system.serviceaccount"
 )
 
-// AddToManager adds this package's controller to the provided manager.
+// AddServiceAccountProviderControllerToManager adds this controller to the provided manager.
 func AddServiceAccountProviderControllerToManager(ctx *context.ControllerManagerContext, mgr manager.Manager) error {
 	var (
 		controlledType      = &vmwarev1.ProviderServiceAccount{}

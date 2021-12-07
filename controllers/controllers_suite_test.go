@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -35,12 +36,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 
 	infrav1 "sigs.k8s.io/cluster-api-provider-vsphere/apis/v1beta1"
+	vmwarev1 "sigs.k8s.io/cluster-api-provider-vsphere/apis/vmware/v1beta1"
 	"sigs.k8s.io/cluster-api-provider-vsphere/test/helpers"
 	// +kubebuilder:scaffold:imports
 )
 
 func TestControllers(t *testing.T) {
 	RegisterFailHandler(Fail)
+	SetDefaultEventuallyTimeout(time.Second * 30)
 	RunSpecsWithDefaultAndCustomReporters(t,
 		"Controller Suite",
 		[]Reporter{printer.NewlineReporter{}})
@@ -65,6 +68,7 @@ func setup() {
 	fmt.Println("Creating new test environment")
 	utilruntime.Must(infrav1.AddToScheme(scheme.Scheme))
 	utilruntime.Must(clusterv1.AddToScheme(scheme.Scheme))
+	utilruntime.Must(vmwarev1.AddToScheme(scheme.Scheme))
 
 	testEnv = helpers.NewTestEnvironment()
 
@@ -79,6 +83,9 @@ func setup() {
 	}
 	if err := AddVsphereClusterIdentityControllerToManager(testEnv.GetContext(), testEnv.Manager); err != nil {
 		panic(fmt.Sprintf("unable to setup VSphereClusterIdentity controller: %v", err))
+	}
+	if err := AddServiceAccountProviderControllerToManager(testEnv.GetContext(), testEnv.Manager); err != nil {
+		panic(fmt.Sprintf("unable to setup ServiceAccountProvider controller: %v", err))
 	}
 
 	go func() {

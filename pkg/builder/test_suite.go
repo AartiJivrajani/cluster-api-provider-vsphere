@@ -92,6 +92,10 @@ func NewTestSuiteForController(
 	return testSuite
 }
 
+func (s *TestSuite) SetIntegrationTestClient(integrationTestClient client.Client) {
+	s.integrationTestClient = integrationTestClient
+}
+
 func (s *TestSuite) init(addToManagerFn manager.AddToManagerFunc, newReconcilerFn NewReconcilerFunc, additionalAPIServerFlags ...string) {
 	// Initialize the test flags.
 	s.flags = GetTestFlags()

@@ -12,6 +12,7 @@ require (
 	github.com/onsi/ginkgo v1.16.4
 	github.com/onsi/gomega v1.16.0
 	github.com/pkg/errors v0.9.1
+	github.com/satori/go.uuid v1.2.0
 	github.com/spf13/cobra v1.2.1
 	github.com/vmware-tanzu/net-operator-api v0.0.0-20210401185409-b0dc6c297707
 	github.com/vmware-tanzu/vm-operator-api v0.1.4-0.20211029224930-6ec913d11bff

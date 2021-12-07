@@ -27,6 +27,11 @@ import (
 	goruntime "runtime"
 	"strings"
 
+	"github.com/go-logr/logr"
+
+	"sigs.k8s.io/cluster-api-provider-vsphere/pkg/context"
+	ctrlmgr "sigs.k8s.io/controller-runtime/pkg/manager"
+
 	"github.com/onsi/ginkgo"
 	"github.com/vmware/govmomi/simulator"
 	admissionv1 "k8s.io/api/admissionregistration/v1"
@@ -47,18 +52,16 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
-	ctrlmgr "sigs.k8s.io/controller-runtime/pkg/manager"
 
 	infrav1alpha3 "sigs.k8s.io/cluster-api-provider-vsphere/apis/v1alpha3"
 	infrav1alpha4 "sigs.k8s.io/cluster-api-provider-vsphere/apis/v1alpha4"
 	infrav1 "sigs.k8s.io/cluster-api-provider-vsphere/apis/v1beta1"
-	"sigs.k8s.io/cluster-api-provider-vsphere/pkg/context"
 	"sigs.k8s.io/cluster-api-provider-vsphere/pkg/manager"
 )
 
 func init() {
 	klog.InitFlags(nil)
-	logger := klogr.New()
+	logger = klogr.New()
 
 	// use klog as the internal logger for this envtest environment.
 	log.SetLogger(logger)
@@ -71,6 +74,7 @@ func init() {
 var (
 	scheme                 = runtime.NewScheme()
 	env                    *envtest.Environment
+	logger                 logr.Logger
 	clusterAPIVersionRegex = regexp.MustCompile(`^(\W)sigs.k8s.io/cluster-api v(.+)`)
 )
 
@@ -90,6 +94,7 @@ func init() {
 
 	crdPaths := []string{
 		filepath.Join(root, "config", "default", "crd", "bases"),
+		filepath.Join(root, "config", "supervisor", "crd"),
 	}
 
 	// append CAPI CRDs path
@@ -141,6 +146,7 @@ func NewTestEnvironment() *TestEnvironment {
 			Port:               env.WebhookInstallOptions.LocalServingPort,
 			CertDir:            env.WebhookInstallOptions.LocalServingCertDir,
 			MetricsBindAddress: "0",
+			Logger:             logger,
 		},
 		KubeConfig: env.Config,
 		Username:   simr.Username(),

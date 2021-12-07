@@ -26,7 +26,6 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -38,11 +37,6 @@ import (
 // This object is used for unit tests setup only
 // Integration tests will be run using the existing envTest setup.
 var serviceAccountProviderTestsuite = builder.NewTestSuiteForController(AddServiceAccountProviderControllerToManager, NewServiceAccountReconciler)
-
-/*func TestServiceAccountProviderController(t *testing.T) {
-	// TODO: [Aarti] - Add the integration test function instead of placeholder
-	serviceAccountProviderTestsuite.Register(t, "ProviderServiceaccount controller suite", serviceAccountProviderUnitTests)
-}*/
 
 const (
 	testNS                     = "test-namespace"
@@ -63,7 +57,21 @@ var (
 	truePointer = true
 )
 
-func createTargetSecretWithInvalidToken(ctx *builder.UnitTestContextForController, guestClient client.Client) { // nolint
+func createTestResource(ctx goctx.Context, ctrlClient client.Client, obj client.Object) {
+	Expect(ctrlClient.Create(ctx, obj)).To(Succeed())
+}
+
+func deleteTestResource(ctx goctx.Context, ctrlClient client.Client, obj client.Object) {
+	Expect(ctrlClient.Delete(ctx, obj)).To(Succeed())
+}
+
+func createTestProviderSvcAccountWithInvalidRef(ctx goctx.Context, ctrlClient client.Client, namespace string, vsphereCluster *vmwarev1.VSphereCluster) {
+	pSvcAccount := getTestProviderServiceAccount(namespace, testProviderSvcAccountName, vsphereCluster)
+	pSvcAccount.Spec.Ref = &corev1.ObjectReference{}
+	createTestResource(ctx, ctrlClient, pSvcAccount)
+}
+
+func createTargetSecretWithInvalidToken(ctx goctx.Context, guestClient client.Client) { // nolint
 	secret := getTestTargetSecretWithInvalidToken()
 	Expect(guestClient.Create(ctx, secret)).To(Succeed())
 }
@@ -75,7 +83,7 @@ func assertEventuallyExistsInNamespace(ctx goctx.Context, c client.Client, names
 	}).Should(Succeed())
 }
 
-func assertNoEntities(ctx *builder.UnitTestContextForController, ctrlClient client.Client, namespace string) { // nolint
+func assertNoEntities(ctx goctx.Context, ctrlClient client.Client, namespace string) { // nolint
 	Consistently(func() int {
 		var serviceAccountList corev1.ServiceAccountList
 		err := ctrlClient.List(ctx, &serviceAccountList, client.InNamespace(namespace))
@@ -98,7 +106,7 @@ func assertNoEntities(ctx *builder.UnitTestContextForController, ctrlClient clie
 	}, time.Second*3).Should(Equal(0))
 }
 
-func assertServiceAccountAndUpdateSecret(ctx *builder.UnitTestContextForController, ctrlClient client.Client, namespace, name string) {
+func assertServiceAccountAndUpdateSecret(ctx goctx.Context, ctrlClient client.Client, namespace, name string) {
 	svcAccount := &corev1.ServiceAccount{}
 	assertEventuallyExistsInNamespace(ctx, ctrlClient, namespace, name, svcAccount)
 	// Update the service account with a prototype secret
@@ -112,7 +120,7 @@ func assertServiceAccountAndUpdateSecret(ctx *builder.UnitTestContextForControll
 	Expect(ctrlClient.Update(ctx, svcAccount)).To(Succeed())
 }
 
-func assertTargetSecret(ctx *builder.UnitTestContextForController, guestClient client.Client, namespace, name string) {
+func assertTargetSecret(ctx goctx.Context, guestClient client.Client, namespace, name string) {
 	secret := &corev1.Secret{}
 	assertEventuallyExistsInNamespace(ctx, guestClient, namespace, name, secret)
 	EventuallyWithOffset(2, func() []byte {
@@ -199,7 +207,7 @@ func getTestTargetSecretWithValidToken() *corev1.Secret {
 	}
 }
 
-func getTestProviderServiceAccount(namespace, name string, tanzukubernetescluster *vmwarev1.VSphereCluster) *vmwarev1.ProviderServiceAccount {
+func getTestProviderServiceAccount(namespace, name string, vSphereCluster *vmwarev1.VSphereCluster) *vmwarev1.ProviderServiceAccount {
 	pSvcAccount := &vmwarev1.ProviderServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -216,18 +224,18 @@ func getTestProviderServiceAccount(namespace, name string, tanzukubernetescluste
 			TargetNamespace:  testTargetNS,
 			TargetSecretName: testTargetSecret,
 		}}
-	if tanzukubernetescluster != nil {
+	if vSphereCluster != nil {
 		pSvcAccount.OwnerReferences = []metav1.OwnerReference{
 			{
 				APIVersion: vmwarev1.GroupVersion.String(),
-				Kind:       "TanzuKubernetesCluster",
-				Name:       tanzukubernetescluster.Name,
-				UID:        tanzukubernetescluster.UID,
+				Kind:       "VSphereCluster",
+				Name:       vSphereCluster.Name,
+				UID:        vSphereCluster.UID,
 				Controller: &truePointer,
 			},
 		}
 		pSvcAccount.Spec.Ref = &corev1.ObjectReference{
-			Name: tanzukubernetescluster.Name,
+			Name: vSphereCluster.Name,
 		}
 	}
 	return pSvcAccount
