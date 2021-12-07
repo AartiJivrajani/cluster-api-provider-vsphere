@@ -24,6 +24,9 @@ import (
 	"reflect"
 	"time"
 
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/source"
+
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -33,6 +36,11 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	bootstrapapi "k8s.io/cluster-bootstrap/token/api"
+	vmwarev1 "sigs.k8s.io/cluster-api-provider-vsphere/apis/vmware/v1beta1"
+	"sigs.k8s.io/cluster-api-provider-vsphere/pkg/builder"
+	"sigs.k8s.io/cluster-api-provider-vsphere/pkg/context"
+	vmwarecontext "sigs.k8s.io/cluster-api-provider-vsphere/pkg/context/vmware"
+	"sigs.k8s.io/cluster-api-provider-vsphere/pkg/record"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/controllers/remote"
 	"sigs.k8s.io/cluster-api/util/conditions"
@@ -41,17 +49,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
-
-	vmwarev1 "sigs.k8s.io/cluster-api-provider-vsphere/apis/vmware/v1beta1"
-	"sigs.k8s.io/cluster-api-provider-vsphere/pkg/builder"
-	"sigs.k8s.io/cluster-api-provider-vsphere/pkg/context"
-	vmwarecontext "sigs.k8s.io/cluster-api-provider-vsphere/pkg/context/vmware"
-	"sigs.k8s.io/cluster-api-provider-vsphere/pkg/record"
 )
 
 const (
@@ -74,8 +74,8 @@ const (
 // AddServiceDiscoveryControllerToManager adds the ServiceDiscovery controller to the provided manager.
 func AddServiceDiscoveryControllerToManager(ctx *context.ControllerManagerContext, mgr manager.Manager) error {
 	var (
-		controllerNameShort = controllerName
-		controllerNameLong  = fmt.Sprintf("%s/%s/%s", ctx.Namespace, ctx.Name, controllerNameShort)
+		controllerNameShort = serviceDiscoverControllerName
+		controllerNameLong  = fmt.Sprintf("%s/%s/%s", ctx.Namespace, ctx.Name, serviceDiscoverControllerName)
 	)
 	controllerContext := &context.ControllerContext{
 		ControllerManagerContext: ctx,
@@ -130,11 +130,7 @@ func AddServiceDiscoveryControllerToManager(ctx *context.ControllerManagerContex
 	}
 	src := source.NewKindWithCache(&corev1.ConfigMap{}, configMapCache)
 
-	return ctrl.NewControllerManagedBy(mgr).
-		Watches(
-			&source.Kind{Type: &vmwarev1.VSphereCluster{}}, &handler.EnqueueRequestForObject{},
-		).
-		WithEventFilter(clusterPredicates).
+	return ctrl.NewControllerManagedBy(mgr).For(&vmwarev1.VSphereCluster{}).
 		Watches(
 			&source.Kind{Type: &corev1.Service{}},
 			handler.EnqueueRequestsFromMapFunc(svcMapper{ctx: controllerContext.ControllerManagerContext}.Map),
@@ -143,6 +139,7 @@ func AddServiceDiscoveryControllerToManager(ctx *context.ControllerManagerContex
 			src,
 			handler.EnqueueRequestsFromMapFunc(configMapMapper{ctx: controllerContext.ControllerManagerContext}.Map),
 		).
+		WithEventFilter(clusterPredicates).
 		// watch the CAPI cluster
 		Watches(
 			&source.Kind{Type: &clusterv1.Cluster{}}, &handler.EnqueueRequestForOwner{
