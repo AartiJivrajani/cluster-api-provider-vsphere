@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+   http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,7 +17,11 @@ limitations under the License.
 package controllers
 
 import (
+	goctx "context"
 	"os"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	//nolint
 	. "github.com/onsi/ginkgo"
@@ -29,38 +33,40 @@ import (
 	"sigs.k8s.io/cluster-api-provider-vsphere/pkg/builder"
 )
 
-var _ = Describe("ServiceAccount controller integration tests", func() {
+var _ = FDescribe("ServiceAccount controller integration tests", func() {
 	var (
-		ctx *builder.IntegrationTestContext
+		intCtx *builder.IntegrationTestContext
 	)
 
 	BeforeEach(func() {
-		serviceAccountProviderTestsuite.SetIntegrationTestClient(testEnv.Client)
-		ctx = serviceAccountProviderTestsuite.NewIntegrationTestContextWithClusters(testEnv.Client, true, false)
+		ServiceAccountProviderTestsuite.SetIntegrationTestClient(testEnv.Manager.GetClient())
+		intCtx = ServiceAccountProviderTestsuite.NewIntegrationTestContextWithClusters(goctx.Background(), testEnv.Manager.GetClient(), true)
 		testSystemSvcAcctCM := "test-system-svc-acct-cm"
-		cfgMap := getSystemServiceAccountsConfigMap(ctx.TanzuKubernetesCluster.Namespace, testSystemSvcAcctCM)
-		Expect(ctx.Client.Create(ctx, cfgMap)).To(Succeed())
-		_ = os.Setenv("SERVICE_ACCOUNTS_CM_NAMESPACE", ctx.TanzuKubernetesCluster.Namespace)
+		cfgMap := getSystemServiceAccountsConfigMap(intCtx.VSphereCluster.Namespace, testSystemSvcAcctCM)
+		Expect(intCtx.Client.Create(intCtx, cfgMap)).To(Succeed())
+		_ = os.Setenv("SERVICE_ACCOUNTS_CM_NAMESPACE", intCtx.VSphereCluster.Namespace)
 		_ = os.Setenv("SERVICE_ACCOUNTS_CM_NAME", testSystemSvcAcctCM)
 	})
 
 	AfterEach(func() {
-		ctx.AfterEach()
-		ctx = nil
+		intCtx.AfterEach()
+		intCtx = nil
 	})
 
-	FDescribe("When the ProviderServiceAccount is created", func() {
+	Describe("When the ProviderServiceAccount is created", func() {
 		var (
 			pSvcAccount *vmwarev1.ProviderServiceAccount
+			targetNSObj *corev1.Namespace
 		)
 		BeforeEach(func() {
-			pSvcAccount = getTestProviderServiceAccount(ctx.Namespace, testProviderSvcAccountName, ctx.TanzuKubernetesCluster)
-			createTestResource(ctx, ctx.Client, pSvcAccount)
+			pSvcAccount = getTestProviderServiceAccount(intCtx.Namespace, testProviderSvcAccountName, intCtx.VSphereCluster)
+			createTestResource(intCtx, intCtx.Client, pSvcAccount)
+			assertEventuallyExistsInNamespace(intCtx, intCtx.Client, intCtx.Namespace, testProviderSvcAccountName, pSvcAccount)
 		})
 		AfterEach(func() {
 			// Deleting the provider service account is not strictly required as the context itself gets teared down but
 			// keeping it for clarity.
-			deleteTestResource(ctx, ctx.Client, pSvcAccount)
+			deleteTestResource(intCtx, intCtx.Client, pSvcAccount)
 		})
 
 		Context("When serviceaccount secret is created", func() {
@@ -69,53 +75,64 @@ var _ = Describe("ServiceAccount controller integration tests", func() {
 				// to create a secret containing the bearer token, cert etc for a service account. We need to
 				// simulate the job of the token controller by waiting for the service account creation and then updating it
 				// with a prototype secret.
-				assertServiceAccountAndUpdateSecret(ctx, ctx.Client, ctx.Namespace, testSvcAccountName)
+				//log.Printf("ctx.Client to get ************** %v", intCtx.Client)
+				assertServiceAccountAndUpdateSecret(intCtx, intCtx.Client, intCtx.Namespace, testProviderSvcAccountName)
 			})
 			It("Should reconcile", func() {
 				By("Creating the target secret in the target namespace")
-				assertTargetSecret(ctx, ctx.GuestClient, testTargetNS, testTargetSecret)
+				assertTargetSecret(intCtx, intCtx.GuestClient, testTargetNS, testTargetSecret)
 			})
 		})
 
 		Context("When serviceaccount secret is rotated", func() {
 			BeforeEach(func() {
-				createTargetSecretWithInvalidToken(ctx, ctx.GuestClient)
-				assertServiceAccountAndUpdateSecret(ctx, ctx.Client, ctx.Namespace, testSvcAccountName)
+				targetNSObj = &corev1.Namespace{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: testTargetNS,
+					},
+				}
+				Expect(intCtx.GuestClient.Create(intCtx, targetNSObj)).To(Succeed())
+				createTargetSecretWithInvalidToken(intCtx, intCtx.GuestClient, testTargetNS)
+				assertServiceAccountAndUpdateSecret(intCtx, intCtx.Client, intCtx.Namespace, testSvcAccountName)
+			})
+			AfterEach(func() {
+				deleteTestResource(intCtx, intCtx.GuestClient, targetNSObj)
 			})
 			It("Should reconcile", func() {
 				By("Updating the target secret in the target namespace")
-				assertTargetSecret(ctx, ctx.GuestClient, testTargetNS, testTargetSecret)
+				assertTargetSecret(intCtx, intCtx.GuestClient, testTargetNS, testTargetSecret)
 			})
 		})
-	})
 
-	Context("When provider service account does not exist", func() {
-		It("Should not reconcile", func() {
-			By("Not creating any entities")
-			assertNoEntities(ctx, ctx.Client, ctx.Namespace)
+		Context("When provider service account does not exist", func() {
+			It("Should not reconcile", func() {
+				By("Not creating any entities")
+				assertNoEntities(intCtx, intCtx.Client, intCtx.Namespace)
+			})
 		})
-	})
 
-	Context("When the ProviderServiceAccount has a non-existing cluster ref", func() {
-		BeforeEach(func() {
-			nonExistingTanzuKubernetesCluster := ctx.TanzuKubernetesCluster
-			nonExistingTanzuKubernetesCluster.Name = "non-existing-managed-ckuster"
-			pSvcAccount := getTestProviderServiceAccount(ctx.Namespace, testProviderSvcAccountName, nonExistingTanzuKubernetesCluster)
-			createTestResource(ctx, ctx.Client, pSvcAccount)
+		Context("When the ProviderServiceAccount has a non-existing cluster ref", func() {
+			BeforeEach(func() {
+				nonExistingTanzuKubernetesCluster := intCtx.VSphereCluster
+				nonExistingTanzuKubernetesCluster.Name = "non-existing-managed-ckuster"
+				pSvcAccountNew := getTestProviderServiceAccount(intCtx.Namespace, testProviderSvcAccountName, nonExistingTanzuKubernetesCluster)
+				deleteTestResource(intCtx, intCtx.Client, pSvcAccount)
+				createTestResource(intCtx, intCtx.Client, pSvcAccountNew)
+			})
+			It("Should not reconcile", func() {
+				By("Not creating any entities")
+				assertNoEntities(intCtx, intCtx.Client, intCtx.Namespace)
+			})
 		})
-		It("Should not reconcile", func() {
-			By("Not creating any entities")
-			assertNoEntities(ctx, ctx.Client, ctx.Namespace)
-		})
-	})
-
-	Context("When the ProviderServiceAccount has invalid cluster ref", func() {
-		BeforeEach(func() {
-			createTestProviderSvcAccountWithInvalidRef(ctx, ctx.Client, ctx.Namespace, ctx.TanzuKubernetesCluster)
-		})
-		It("Should not reconcile", func() {
-			By("Not creating any entities")
-			assertNoEntities(ctx, ctx.Client, ctx.Namespace)
-		})
+		//
+		//Context("When the ProviderServiceAccount has invalid cluster ref", func() {
+		//	BeforeEach(func() {
+		//		createTestProviderSvcAccountWithInvalidRef(ctx, ctx.Client, ctx.Namespace, ctx.VSphereCluster)
+		//	})
+		//	It("Should not reconcile", func() {
+		//		By("Not creating any entities")
+		//		assertNoEntities(ctx, ctx.Client, ctx.Namespace)
+		//	})
+		//})
 	})
 })

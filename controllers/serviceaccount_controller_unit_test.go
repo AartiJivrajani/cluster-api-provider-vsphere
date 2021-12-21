@@ -41,7 +41,7 @@ func unitTestsReconcileNormal() {
 	JustBeforeEach(func() {
 		// Note: The service account provider requires a reference to the vSphereCluster hence the need to create
 		// a fake vSphereCluster in the test and pass it to during context setup.
-		ctx = serviceAccountProviderTestsuite.NewUnitTestContextForControllerWithVSphereCluster(vsphereCluster, false, initObjects...)
+		ctx = ServiceAccountProviderTestsuite.NewUnitTestContextForControllerWithVSphereCluster(vsphereCluster, false, initObjects...)
 	})
 	AfterEach(func() {
 		ctx = nil
@@ -80,7 +80,7 @@ func unitTestsReconcileNormal() {
 		Context("When serviceaccount secret is modified", func() {
 			It("Should reconcile", func() {
 				// This is to simulate an outdated token that will be replaced when the serviceaccount secret is created.
-				createTargetSecretWithInvalidToken(ctx, ctx.GuestClient)
+				createTargetSecretWithInvalidToken(ctx, ctx.GuestClient, testTargetNS)
 				updateServiceAccountSecretAndReconcileNormal(ctx)
 				By("Updating the target secret in the target namespace")
 				assertTargetSecret(ctx, ctx.GuestClient, testTargetNS, testTargetSecret)

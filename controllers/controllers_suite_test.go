@@ -22,6 +22,8 @@ import (
 	"testing"
 	"time"
 
+	vmwarev1 "sigs.k8s.io/cluster-api-provider-vsphere/apis/vmware/v1beta1"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/cluster-api-provider-vsphere/pkg/manager"
@@ -36,7 +38,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 
 	infrav1 "sigs.k8s.io/cluster-api-provider-vsphere/apis/v1beta1"
-	vmwarev1 "sigs.k8s.io/cluster-api-provider-vsphere/apis/vmware/v1beta1"
 	"sigs.k8s.io/cluster-api-provider-vsphere/test/helpers"
 	// +kubebuilder:scaffold:imports
 )
@@ -65,15 +66,16 @@ func TestMain(m *testing.M) {
 }
 
 func setup() {
-	fmt.Println("Creating new test environment")
 	utilruntime.Must(infrav1.AddToScheme(scheme.Scheme))
 	utilruntime.Must(clusterv1.AddToScheme(scheme.Scheme))
 	utilruntime.Must(vmwarev1.AddToScheme(scheme.Scheme))
 
 	testEnv = helpers.NewTestEnvironment()
-
 	if err := AddClusterControllerToManager(testEnv.GetContext(), testEnv.Manager, &infrav1.VSphereCluster{}); err != nil {
 		panic(fmt.Sprintf("unable to setup VsphereCluster controller: %v", err))
+	}
+	if err := AddClusterControllerToManager(testEnv.GetContext(), testEnv.Manager, &vmwarev1.VSphereCluster{}); err != nil {
+		panic(fmt.Sprintf("unable to setup supervisor VsphereCluster controller: %v", err))
 	}
 	if err := AddMachineControllerToManager(testEnv.GetContext(), testEnv.Manager, &infrav1.VSphereMachine{}); err != nil {
 		panic(fmt.Sprintf("unable to setup VsphereMachine controller: %v", err))
@@ -89,8 +91,7 @@ func setup() {
 	}
 
 	go func() {
-		fmt.Println("Starting the manager")
-		if err := testEnv.StartManager(ctx); err != nil {
+		if err := testEnv.StartManager(testEnv.GetContext()); err != nil {
 			panic(fmt.Sprintf("failed to start the envtest manager: %v", err))
 		}
 	}()
@@ -105,7 +106,7 @@ func setup() {
 			Name: manager.DefaultPodNamespace,
 		},
 	}
-	if err := testEnv.Create(ctx, ns); err != nil {
+	if err := testEnv.Create(testEnv.GetContext(), ns); err != nil {
 		panic("unable to create controller namespace")
 	}
 }
