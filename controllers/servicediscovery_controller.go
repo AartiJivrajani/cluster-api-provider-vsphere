@@ -19,6 +19,7 @@ package controllers
 import (
 	goctx "context"
 	"fmt"
+	"log"
 	"net"
 	"net/url"
 	"reflect"
@@ -48,14 +49,12 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 const (
-	clusterNotReadyRequeueTime    = time.Minute * 2
+	clusterNotReadyRequeueTime    = time.Second * 2
 	serviceDiscoverControllerName = "svcdiscovery-controller"
 
 	supervisorLoadBalancerSvcNamespace = "kube-system"
@@ -84,32 +83,32 @@ func AddServiceDiscoveryControllerToManager(ctx *context.ControllerManagerContex
 		Logger:                   ctx.Logger.WithName(controllerNameShort),
 	}
 	// When watching a VSphereCluster, we only care about Create and Update events.
-	clusterPredicates := predicate.Funcs{
-		CreateFunc: func(event.CreateEvent) bool { return true },
-		// Reconcile on update. Don't test for equality as the DefaultSyncTime reconciles happen through this path
-		UpdateFunc:  func(e event.UpdateEvent) bool { return true },
-		DeleteFunc:  func(event.DeleteEvent) bool { return false },
-		GenericFunc: func(event.GenericEvent) bool { return false },
-	}
+	//clusterPredicates := predicate.Funcs{
+	//	CreateFunc: func(event.CreateEvent) bool { return true },
+	//	// Reconcile on update. Don't test for equality as the DefaultSyncTime reconciles happen through this path
+	//	UpdateFunc:  func(e event.UpdateEvent) bool { return true },
+	//	DeleteFunc:  func(event.DeleteEvent) bool { return false },
+	//	GenericFunc: func(event.GenericEvent) bool { return false },
+	//}
 	// When watching a Cluster, we only care about Update events.
 	// Should not be necessary to watch Create events since we watch VSphereCluster Create and
 	//  there are no circumstances in which a VSphereCluster and Cluster can be created separately
-	capiClusterPredicates := predicate.Funcs{
-		CreateFunc: func(event.CreateEvent) bool { return false },
-		UpdateFunc: func(e event.UpdateEvent) bool {
-			for _, ownerRef := range e.ObjectNew.GetOwnerReferences() {
-				if ownerRef.Name == e.ObjectNew.GetName() {
-					// We don't have this check in VSphereCluster Update ensuring that every DefaultTimeSync
-					// we're guaranteed to have at least one Reconcile.
-					// If we didn't have this check here, we'd get at least two Reconciles every DefaultTimeSync
-					return e.ObjectOld.GetResourceVersion() != e.ObjectNew.GetResourceVersion()
-				}
-			}
-			return false
-		},
-		DeleteFunc:  func(event.DeleteEvent) bool { return false },
-		GenericFunc: func(event.GenericEvent) bool { return false },
-	}
+	//capiClusterPredicates := predicate.Funcs{
+	//	CreateFunc: func(event.CreateEvent) bool { return false },
+	//	UpdateFunc: func(e event.UpdateEvent) bool {
+	//		for _, ownerRef := range e.ObjectNew.GetOwnerReferences() {
+	//			if ownerRef.Name == e.ObjectNew.GetName() {
+	//				// We don't have this check in VSphereCluster Update ensuring that every DefaultTimeSync
+	//				// we're guaranteed to have at least one Reconcile.
+	//				// If we didn't have this check here, we'd get at least two Reconciles every DefaultTimeSync
+	//				return e.ObjectOld.GetResourceVersion() != e.ObjectNew.GetResourceVersion()
+	//			}
+	//		}
+	//		return false
+	//	},
+	//	DeleteFunc:  func(event.DeleteEvent) bool { return false },
+	//	GenericFunc: func(event.GenericEvent) bool { return false },
+	//}
 	vsphereCluster := &vmwarev1.VSphereCluster{}
 	r := serviceDiscoveryReconciler{
 		ControllerContext: controllerContext,
@@ -139,14 +138,14 @@ func AddServiceDiscoveryControllerToManager(ctx *context.ControllerManagerContex
 			src,
 			handler.EnqueueRequestsFromMapFunc(configMapMapper{ctx: controllerContext.ControllerManagerContext}.Map),
 		).
-		WithEventFilter(clusterPredicates).
+		//WithEventFilter(clusterPredicates).
 		// watch the CAPI cluster
 		Watches(
 			&source.Kind{Type: &clusterv1.Cluster{}}, &handler.EnqueueRequestForOwner{
 				OwnerType:    vsphereCluster,
 				IsController: true,
 			}).
-		WithEventFilter(capiClusterPredicates).
+		//WithEventFilter(capiClusterPredicates).
 		Complete(r)
 }
 
@@ -160,7 +159,7 @@ type serviceDiscoveryReconciler struct {
 
 func (r serviceDiscoveryReconciler) Reconcile(ctx goctx.Context, req reconcile.Request) (_ reconcile.Result, reterr error) {
 	logger := r.Logger.WithName(req.Namespace).WithName(req.Name)
-	logger.V(4).Info("Starting Reconcile")
+	logger.V(1).Info("Starting Reconcile")
 
 	// Get the vspherecluster for this request.
 	vsphereCluster := &vmwarev1.VSphereCluster{}
@@ -266,12 +265,12 @@ func allClustersRequests(ctx *context.ControllerManagerContext) []reconcile.Requ
 }
 
 func (r serviceDiscoveryReconciler) ReconcileNormal(ctx *vmwarecontext.GuestClusterContext) (reconcile.Result, error) {
-	ctx.Logger.V(4).Info("Reconciling Service Discovery", "cluster", ctx.VSphereCluster.Name)
-
+	ctx.Logger.V(1).Info("Reconciling Service Discovery", "cluster", ctx.VSphereCluster.Name)
+	log.Printf("~~~~~~~~~ RECONCILE NORMAL ~~~~~~~~~~~~~~~~")
 	if err := r.reconcileSupervisorHeadlessService(ctx); err != nil {
 		conditions.MarkFalse(ctx.VSphereCluster, vmwarev1.ServiceDiscoveryReadyCondition, vmwarev1.SupervisorHeadlessServiceSetupFailedReason,
 			clusterv1.ConditionSeverityWarning, err.Error())
-		return reconcile.Result{}, errors.Wrapf(err, "failed to configure supervisor headless service for %s", ctx)
+		return reconcile.Result{}, errors.Wrapf(err, "failed to configure supervisor headless service for %v", ctx.VSphereCluster)
 	}
 
 	return reconcile.Result{}, nil
@@ -280,10 +279,12 @@ func (r serviceDiscoveryReconciler) ReconcileNormal(ctx *vmwarecontext.GuestClus
 // Setup a local k8s service in the target cluster that proxies to the Supervisor Cluster API Server. The add-ons are
 // dependent on this local service to connect to the Supervisor Cluster.
 func (r serviceDiscoveryReconciler) reconcileSupervisorHeadlessService(ctx *vmwarecontext.GuestClusterContext) error {
+	log.Print("~~~~~~~~~~~ reconcileSupervisorHeadlessService ~~~~~~~~~~~~~~")
 	// Create the headless service to the supervisor api server on the target cluster.
 	supervisorPort := vmwarev1.SupervisorAPIServerPort
 	svc := NewSupervisorHeadlessService(vmwarev1.SupervisorHeadlessSvcPort, supervisorPort)
 	if err := ctx.GuestClient.Create(ctx, svc); err != nil && !apierrors.IsAlreadyExists(err) {
+		log.Printf("~~~~~~~~~~~~~~~~~ ERROR in NewSupervisorHeadlessService: %v", err)
 		return errors.Wrapf(err, "cannot create k8s service %s/%s in ", svc.Namespace, svc.Name)
 	}
 
@@ -293,7 +294,7 @@ func (r serviceDiscoveryReconciler) reconcileSupervisorHeadlessService(ctx *vmwa
 		// re-trying.
 		conditions.MarkFalse(ctx.VSphereCluster, vmwarev1.ServiceDiscoveryReadyCondition, vmwarev1.SupervisorHeadlessServiceSetupFailedReason,
 			clusterv1.ConditionSeverityWarning, err.Error())
-		return nil
+		return nil //errors.Wrapf(err, "error!!")
 	}
 
 	ctx.Logger.Info("Discovered supervisor apiserver address", "host", supervisorHost, "port", supervisorPort)
@@ -390,6 +391,7 @@ func NewSupervisorHeadlessServiceEndpoints(targetHost string, targetPort int) *c
 
 func GetSupervisorAPIServerVIP(client client.Client) (string, error) { // nolint
 	svc := &corev1.Service{}
+	// kube-system/kube-apiserver-lb-svc
 	svcKey := types.NamespacedName{Name: vmwarev1.SupervisorLoadBalancerSvcName, Namespace: vmwarev1.SupervisorLoadBalancerSvcNamespace}
 	if err := client.Get(goctx.Background(), svcKey, svc); err != nil {
 		return "", errors.Wrapf(err, "unable to get supervisor loadbalancer svc %s", svcKey)

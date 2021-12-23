@@ -116,8 +116,8 @@ help: ## Display this help
 
 .PHONY: test
 test: $(GOVC)
-	$(MAKE) generate lint-go
-	source ./hack/fetch_ext_bins.sh; fetch_tools; setup_envs; export GOVC_BIN_PATH=$(GOVC); go test -v ./apis/... ./controllers/... ./pkg/...
+	#$(MAKE) generate lint-go
+	source ./hack/fetch_ext_bins.sh; fetch_tools; setup_envs; export GOVC_BIN_PATH=$(GOVC); go test -v ./controllers -enable-integration-tests #./apis/... ./controllers/... ./pkg/...
 
 .PHONY: e2e-image
 e2e-image: ## Build the e2e manager image
@@ -131,9 +131,9 @@ e2e-templates: ## Generate e2e cluster templates
 	"$(KUSTOMIZE)" build $(E2E_TEMPLATE_DIR)/kustomization/remote-management > $(E2E_TEMPLATE_DIR)/cluster-template-remote-management.yaml
 
 .PHONY: test-integration
-test-integration: e2e-image
+test-integration: e2e-image ## Run the integration tests
 test-integration: $(GINKGO) $(KUSTOMIZE) $(KIND)
-	time $(GINKGO) -v ./test/integration -- --config="$(INTEGRATION_CONF_FILE)" --artifacts-folder="$(ARTIFACTS_PATH)"
+	time $(GINKGO) -v ./test/integration -- --config="$(INTEGRATION_CONF_FILE)" --artifacts-folder="$(ARTIFACTS_PATH)" --skip-resource-cleanup #--use-existing-cluster
 
 .PHONY: e2e
 e2e: e2e-image e2e-templates

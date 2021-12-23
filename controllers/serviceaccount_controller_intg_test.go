@@ -33,7 +33,7 @@ import (
 	"sigs.k8s.io/cluster-api-provider-vsphere/pkg/builder"
 )
 
-var _ = FDescribe("ServiceAccount controller integration tests", func() {
+var _ = Describe("ServiceAccount controller integration tests", func() {
 	var (
 		intCtx *builder.IntegrationTestContext
 	)

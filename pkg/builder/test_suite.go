@@ -18,12 +18,19 @@ package builder
 
 import (
 	goctx "context"
+	"encoding/json"
+	"os/exec"
+	"path"
+	"path/filepath"
+	goruntime "runtime"
 	"sync"
 	"testing"
 	"time"
 
+	"k8s.io/klog/v2"
 	vmwarecontext "sigs.k8s.io/cluster-api-provider-vsphere/pkg/context/vmware"
-
+	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	vmwarev1 "sigs.k8s.io/cluster-api-provider-vsphere/apis/vmware/v1beta1"
@@ -37,7 +44,6 @@ import (
 
 	"sigs.k8s.io/cluster-api-provider-vsphere/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 )
 
 // TestSuite is used for unit and integration testing builder.
@@ -46,6 +52,7 @@ type TestSuite struct {
 	addToManagerFn        manager.AddToManagerFunc
 	certDir               string
 	integrationTestClient client.Client
+	envTest               envtest.Environment
 	config                *rest.Config
 	done                  chan struct{}
 	flags                 TestFlags
@@ -96,11 +103,43 @@ func (s *TestSuite) SetIntegrationTestClient(integrationTestClient client.Client
 	s.integrationTestClient = integrationTestClient
 }
 
+var (
+	scheme *runtime.Scheme
+)
+
 func (s *TestSuite) init(addToManagerFn manager.AddToManagerFunc, newReconcilerFn NewReconcilerFunc, additionalAPIServerFlags ...string) {
 	// Initialize the test flags.
 	s.flags = GetTestFlags()
-
 	s.newReconcilerFn = newReconcilerFn
+	//s.addToManagerFn = addToManagerFn
+
+	_, filename, _, _ := goruntime.Caller(0) //nolint
+	root := path.Join(path.Dir(filename), "..", "..", "..")
+	clusterAPIDir := findModuleDir("sigs.k8s.io/cluster-api")
+
+	s.envTest = envtest.Environment{
+		CRDDirectoryPaths: []string{
+			filepath.Join(root, "config", "supervisor", "crd"),
+			filepath.Join(root, "config", "deployments", "integration-tests", "crds"),
+			filepath.Join(clusterAPIDir, "config", "crd", "bases"),
+		},
+		Scheme: scheme,
+	}
+}
+
+func findModuleDir(module string) string {
+	cmd := exec.Command("go", "mod", "download", "-json", module)
+	out, err := cmd.Output()
+	if err != nil {
+		klog.Fatalf("Failed to run go mod to find module %q directory", module)
+	}
+	info := struct{ Dir string }{}
+	if err := json.Unmarshal(out, &info); err != nil {
+		klog.Fatalf("Failed to unmarshal output from go mod command: %v", err)
+	} else if info.Dir == "" {
+		klog.Fatalf("Failed to find go module %q directory, received %v", module, string(out))
+	}
+	return info.Dir
 }
 
 // Register should be invoked by the function to which *testing.T is passed.
@@ -111,29 +150,30 @@ func (s *TestSuite) init(addToManagerFn manager.AddToManagerFunc, newReconcilerF
 // Use runIntegrationTestsFn to pass a function that will be invoked if
 // integration testing is enabled with
 // Describe("Unit tests", runIntegrationTestsFn).
-func (s *TestSuite) Register(t *testing.T, name string, runUnitTestsFn func()) {
+func (s *TestSuite) Register(t *testing.T, name string, runIntegrationTestsFn func()) {
 	RegisterFailHandler(Fail)
 
-	//if runIntegrationTestsFn == nil {
-	//	s.flags.IntegrationTestsEnabled = false
-	//}
-	if runUnitTestsFn == nil {
-		s.flags.UnitTestsEnabled = false
+	if runIntegrationTestsFn == nil {
+		s.flags.IntegrationTestsEnabled = false
 	}
-
-	//if s.flags.IntegrationTestsEnabled {
-	//	Describe("Integration tests", runIntegrationTestsFn)
+	//if runUnitTestsFn == nil {
+	//	s.flags.UnitTestsEnabled = false
 	//}
-	if s.flags.UnitTestsEnabled {
-		Describe("Unit tests", runUnitTestsFn)
-	}
 
+	if s.flags.IntegrationTestsEnabled {
+		FDescribe("Integration tests", runIntegrationTestsFn)
+	}
+	//if s.flags.UnitTestsEnabled {
+	//	Describe("Unit tests", runUnitTestsFn)
+	//}
 	if s.flags.IntegrationTestsEnabled {
 		SetDefaultEventuallyTimeout(time.Second * 30)
 		RunSpecsWithDefaultAndCustomReporters(t, name, []Reporter{printer.NewlineReporter{}})
-	} else if s.flags.UnitTestsEnabled {
-		RunSpecs(t, name)
 	}
+	//RunSpecs(t, name)
+	//if s.flags.UnitTestsEnabled {
+	//	RunSpecs(t, name)
+	//}
 }
 
 // NewUnitTestContextForController returns a new unit test context for this
@@ -193,6 +233,64 @@ func (s *TestSuite) createManager() {
 	s.integrationTestClient = s.manager.GetClient()
 }
 
+func (s *TestSuite) BeforeSuite() {
+	if s.flags.IntegrationTestsEnabled {
+		s.beforeSuiteForIntegrationTesting()
+	}
+}
+
+func (s *TestSuite) beforeSuiteForIntegrationTesting() {
+	By("bootstrapping test environment", func() {
+		var err error
+		s.config, err = s.envTest.Start()
+		Expect(err).ToNot(HaveOccurred())
+		Expect(s.config).ToNot(BeNil())
+	})
+
+	// If one or more webhooks are being tested then go ahead and generate a
+	// PKI toolchain to use with the webhook server.
+	//if s.isWebhookTest() {
+	//	By("generating the pki toolchain", func() {
+	//		var err error
+	//		s.pki, err = generatePKIToolchain()
+	//		Expect(err).ToNot(HaveOccurred())
+	//		// Write the CA pub key and cert pub and private keys to the cert dir.
+	//		Expect(ioutil.WriteFile(path.Join(s.certDir, "tls.crt"), s.pki.publicKeyPEM, 0400)).To(Succeed())
+	//		Expect(ioutil.WriteFile(path.Join(s.certDir, "tls.key"), s.pki.privateKeyPEM, 0400)).To(Succeed())
+	//	})
+	//}
+
+	By("setting up a new manager", func() {
+		s.createManager()
+		s.initializeManager()
+	})
+
+	By("starting the manager", func() {
+		s.startManager()
+	})
+
+	//By("configuring the manager", func() {
+	//	s.postConfigureManager()
+	//})
+
+	// If the test is about capi validation webhook then create a config map and set environment variable
+	//if s.capiWebhookValidator != nil {
+	//	os.Setenv("SERVICE_ACCOUNTS_CM_NAME", TestServiceAccountCMName)
+	//	os.Setenv("SERVICE_ACCOUNTS_CM_NAMESPACE", TestServiceAccountCMNamespace)
+	//
+	//	cm := &corev1.ConfigMap{
+	//		ObjectMeta: metav1.ObjectMeta{
+	//			Name:      TestServiceAccountCMName,
+	//			Namespace: TestServiceAccountCMNamespace,
+	//		},
+	//		Data: map[string]string{
+	//			"system.unsecured": "true",
+	//		},
+	//	}
+	//	Expect(s.integrationTestClient.Create(s, cm)).To(BeNil())
+	//}
+}
+
 func (s *TestSuite) initializeManager() {
 	// If one or more webhooks are being tested then go ahead and configure the
 	// webhook server.
@@ -231,4 +329,17 @@ func (s *TestSuite) startManager() {
 		Expect(s.manager.Start(ctx)).ToNot(HaveOccurred())
 		s.setManagerRunning(false)
 	}()
+}
+
+// Start a whole new manager in the current context
+// Optional to stop the manager before starting a new one
+func (s *TestSuite) startNewManager(ctx *IntegrationTestContext) {
+	//if s.getManagerRunning() {
+	//	s.stopManager()
+	//}
+	s.createManager()
+	s.initializeManager()
+	s.startManager()
+	//s.postConfigureManager()
+	ctx.Client = s.integrationTestClient
 }

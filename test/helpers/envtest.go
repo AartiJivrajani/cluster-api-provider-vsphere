@@ -19,6 +19,7 @@ package helpers
 import (
 	goctx "context"
 	"fmt"
+	"github.com/go-logr/logr"
 	"go/build"
 	"os"
 	"path"
@@ -26,8 +27,6 @@ import (
 	"regexp"
 	goruntime "runtime"
 	"strings"
-
-	"github.com/go-logr/logr"
 
 	"sigs.k8s.io/cluster-api-provider-vsphere/pkg/context"
 	ctrlmgr "sigs.k8s.io/controller-runtime/pkg/manager"
@@ -130,7 +129,7 @@ func NewTestEnvironment() *TestEnvironment {
 		err = kerrors.NewAggregate([]error{err, env.Stop()})
 		panic(err)
 	}
-
+	fmt.Printf("~~~~~~~ Start down guest cluster control plane: %v ", env.ControlPlane.GetAPIServer().HostPort())
 	model := simulator.VPX()
 	model.Pool = 1
 	simr, err := VCSimBuilder().

@@ -89,6 +89,9 @@ func setup() {
 	if err := AddServiceAccountProviderControllerToManager(testEnv.GetContext(), testEnv.Manager); err != nil {
 		panic(fmt.Sprintf("unable to setup ServiceAccountProvider controller: %v", err))
 	}
+	if err := AddServiceDiscoveryControllerToManager(testEnv.GetContext(), testEnv.Manager); err != nil {
+		panic(fmt.Sprintf("unable to setup ServiceDiscovery ontroller: %v", err))
+	}
 
 	go func() {
 		if err := testEnv.StartManager(testEnv.GetContext()); err != nil {

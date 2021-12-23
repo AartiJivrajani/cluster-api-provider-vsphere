@@ -6,6 +6,7 @@ package builder
 import (
 	"context"
 	"fmt"
+	"log"
 	"path/filepath"
 
 	"github.com/google/uuid"
@@ -67,6 +68,7 @@ func (ctx *IntegrationTestContext) AfterEach() {
 
 	if ctx.envTest != nil {
 		By("Shutting down guest cluster control plane")
+		log.Printf("~~~~~~~ Shutting down guest cluster control plane: %v ", ctx.envTest.ControlPlane.GetAPIServer().HostPort())
 		Expect(ctx.envTest.Stop()).To(Succeed())
 	}
 }
@@ -210,6 +212,7 @@ func (s *TestSuite) NewIntegrationTestContextWithClusters(goctx context.Context,
 			}
 			ctx.envTest.ControlPlane.GetAPIServer().Configure().Set("allow-privileged", "true")
 			config, err = ctx.envTest.Start()
+			log.Printf("~~~~~~~~~~~ guest cluster endpoint: %v, namespace: %v, cluster: %v", ctx.envTest.ControlPlane.GetAPIServer().HostPort(), ctx.VSphereCluster.Namespace, ctx.VSphereCluster.Name)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(config).ShouldNot(BeNil())
 
